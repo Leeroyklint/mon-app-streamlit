@@ -129,7 +129,7 @@ def extract_information(splits):
         {{
           "Entreprise": "Klint",
           "Poste": "Consultant CRM",
-          "Durée": "Janvier 2021 - Présent",
+          "Durée": "Jan 2021 - Présent",
           "Contexte": "Projet de mise en place d'un nouveau CRM marketing pour client retail",
           "Missions": [
             "Analyser les besoins métiers",
@@ -184,7 +184,7 @@ def extract_information(splits):
         {{
           "Entreprise": "Grande Banque",
           "Poste": "Data Engineer",
-          "Durée": "2019 - 2023",
+          "Durée": "Feb 2019 - Dec 2020",
           "Contexte": "Implémentation d'un data lake sur Azure pour la direction marketing.",
           "Missions": [
             "Mise en place d'un pipeline d'intégration temps réel",
@@ -256,17 +256,33 @@ def parse_result(result):
     else:
         raise Exception("Aucun JSON détecté dans la réponse du LLM.")
 
+# --- Fonction modifiée pour gérer différents formats de durée et les mois en français ---
 def parse_start_date(duration_str):
     try:
+        if not duration_str or "-" not in duration_str:
+            return (0, 0)
         start_part = duration_str.split("-")[0].strip()
         parts = start_part.split()
+        # Si seule l'année est présente
+        if len(parts) == 1:
+            year = int(parts[0])
+            return (year, 0)
         if len(parts) >= 2:
             month_abbr = parts[0]
             year = int(parts[1])
             month_map = {
-                "Jan": 1, "Feb": 2, "Mar": 3, "Apr": 4,
-                "May": 5, "Jun": 6, "Jul": 7, "Aug": 8,
-                "Sep": 9, "Oct": 10, "Nov": 11, "Dec": 12
+                "Jan": 1, "Janvier": 1,
+                "Feb": 2, "Février": 2,
+                "Mar": 3, "Mars": 3,
+                "Apr": 4, "Avril": 4,
+                "May": 5, "Mai": 5,
+                "Jun": 6, "Juin": 6,
+                "Jul": 7, "Juillet": 7,
+                "Aug": 8, "Août": 8,
+                "Sep": 9, "Sept": 9, "Septembre": 9,
+                "Oct": 10, "Octobre": 10,
+                "Nov": 11, "Novembre": 11,
+                "Dec": 12, "Décembre": 12
             }
             month = month_map.get(month_abbr, 0)
             return (year, month)
@@ -512,13 +528,11 @@ def page_formatage_cv():
         st.markdown("<div class='section-header'>Importer votre CV</div>", unsafe_allow_html=True)
         uploaded_file = st.file_uploader("Choisissez votre CV (PDF ou WORD)", type=["pdf", "docx"])
 
-    # On n'affiche plus de champ texte : on va fixer le nom du fichier final
-
-    # Pour conserver les bytes du fichier final en mémoire (session) :
+    # Pour conserver les bytes du fichier final en mémoire (session)
     if "final_doc_bytes" not in st.session_state:
         st.session_state["final_doc_bytes"] = None
 
-    # Nouveau bouton : on ne lance l'algorithme qu'au clic
+    # On lance l'algorithme uniquement au clic
     if uploaded_file is not None:
         temp_dir = tempfile.mkdtemp()
         file_ext = os.path.splitext(uploaded_file.name)[1].lower()
@@ -526,7 +540,6 @@ def page_formatage_cv():
         with open(input_path, "wb") as f:
             f.write(uploaded_file.getbuffer())
 
-        # Bouton pour lancer le traitement
         if st.button("2) Lancer le formatage du CV"):
             with st.spinner("Traitement en cours..."):
                 # Extraction du texte
@@ -566,7 +579,7 @@ def page_formatage_cv():
                 # Ajout automatique de la photo si le CV d'origine en contenait une (PDF)
                 insert_photo_into_cv(final_output_path, input_path, final_output_path)
 
-                # On lit le fichier final en bytes
+                # Lecture du fichier final en bytes
                 with open(final_output_path, "rb") as final_file:
                     st.session_state["final_doc_bytes"] = final_file.read()
 
@@ -574,13 +587,11 @@ def page_formatage_cv():
 
     with col_download:
         st.markdown("<div class='section-header'>Télécharger le CV Klint</div>", unsafe_allow_html=True)
-
-        # On n'affiche le bouton de téléchargement que s'il y a un fichier généré
         if st.session_state["final_doc_bytes"] is not None:
             st.download_button(
                 "Télécharger le CV",
                 data=st.session_state["final_doc_bytes"],
-                file_name="cv_formate.docx",  # Nom fixé
+                file_name="cv_formate.docx",
                 mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
             )
         else:
@@ -601,14 +612,11 @@ def page_service_3():
     st.write("Cette page est en cours de développement... Patience !")
 
 def main():
-    # Barre latérale pour la navigation
     st.sidebar.title("Menu de navigation")
     choix = st.sidebar.radio(
         "Choisissez un service :",
         ("Formatage de CV", "Service 2", "Service 3")
     )
-
-    # Selon le choix, on appelle la page correspondante
     if choix == "Formatage de CV":
         page_formatage_cv()
     elif choix == "Service 2":
