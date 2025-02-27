@@ -110,7 +110,7 @@ def page_chat():
                     "content": response
                 })
                 # 4) Forcer le rafraîchissement pour afficher le nouveau message
-                st.experimental_rerun()
+                st.rerun()
             else:
                 st.warning("Veuillez entrer un message avant d'envoyer.")
 
