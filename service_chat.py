@@ -1,8 +1,13 @@
 import streamlit as st
 import requests
 
-API_KEY = st.secrets["Clé secrète"]
-AZURE_ENDPOINT = st.secrets["Lien connexion"]
+import dotenv
+
+dotenv.load_dotenv()
+
+# Configuration Azure OpenAI (clé API et URL du endpoint)
+API_KEY = os.getenv("AZ_OPENAI_API")
+AZURE_ENDPOINT = os.getenv("AZ_OPENAI_ENDPOINT")
 
 def azure_llm_chat(messages):
     headers = {"Content-Type": "application/json", "api-key": API_KEY}
