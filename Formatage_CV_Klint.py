@@ -21,7 +21,6 @@ from langchain.text_splitter import CharacterTextSplitter
 
 API_KEY = st.secrets["Clé secrète"]
 AZURE_ENDPOINT = st.secrets["Lien connexion"]
-DEPLOYMENT_NAME = st.secrets["gpt-4o-mini"]
 
 def azure_llm_predict(prompt):
     headers = {
