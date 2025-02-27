@@ -37,6 +37,6 @@ def page_chat():
             with st.spinner("Azure OpenAI réfléchit..."):
                 response = azure_llm_chat(st.session_state.chat_history)
             st.session_state.chat_history.append({"role": "assistant", "content": response})
-            st.experimental_rerun()  # relancer pour mettre à jour l'affichage
+            st.rerun()
         else:
             st.warning("Veuillez entrer un message.")
