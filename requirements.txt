@@ -6,3 +6,4 @@ Pillow
 python-docx
 requests
 pypdf
+python-dotenv
