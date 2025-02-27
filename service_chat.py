@@ -177,7 +177,7 @@ def page_chat():
             response = azure_llm_chat(st.session_state["chat_history"])
         # Ajout de la réponse dans l'historique
         st.session_state["chat_history"].append({"role": "assistant", "content": response})
-        st.experimental_rerun()
+        st.rerun()
 
 if __name__ == "__main__":
     page_chat()
