@@ -107,9 +107,12 @@ button[data-baseweb="button"] {
 
 st.markdown(chat_css, unsafe_allow_html=True)
 
-# -- Configuration de l'API Azure OpenAI (adaptation à vos secrets) --
-API_KEY = st.secrets["Clé secrète chat"]
-AZURE_ENDPOINT = st.secrets["Lien connexion chat"]
+import dotenv
+
+dotenv.load_dotenv()
+
+API_KEY = os.getenv("AZ_OPENAI_API")
+AZURE_ENDPOINT = os.getenv("AZ_OPENAI_ENDPOINT")
 
 def azure_llm_chat(messages):
     headers = {"Content-Type": "application/json", "api-key": API_KEY}
