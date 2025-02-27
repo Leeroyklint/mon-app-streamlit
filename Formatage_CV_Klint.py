@@ -3,7 +3,7 @@ from service_chat import page_chat
 
 def main():
     st.sidebar.title("Menu de navigation")
-    choix = st.sidebar.radio("Choisissez un service :", ("Chat Conversationnel"))
+    choix = st.sidebar.radio("Choisissez un service :", ["Chat Azure OpenAI"])
 
     if choix == "Chat Conversationnel":
         page_chat()
