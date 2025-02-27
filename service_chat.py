@@ -75,7 +75,7 @@ def azure_llm_chat(messages):
         return f"Erreur {response.status_code}: {response.text}"
 
 def page_chat():
-    st.title("💬 Mon Chat IA (style ChatGPT)")
+    st.title("💬 Chat AzureOpenAI")
 
     # -- Initialisation de l'historique de conversation dans la session --
     if "chat_history" not in st.session_state:
