@@ -1,6 +1,6 @@
 import streamlit as st
 import requests
-
+import os
 # -- CSS amélioré pour un design conversationnel --
 chat_css = """
 <style>
