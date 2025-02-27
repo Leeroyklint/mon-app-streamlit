@@ -6,10 +6,13 @@ import fitz  # PyMuPDF
 import requests
 from langchain_community.document_loaders import PyPDFLoader
 from langchain.text_splitter import CharacterTextSplitter
+import dotenv
+
+dotenv.load_dotenv()
 
 # Configuration Azure OpenAI (clé API et URL du endpoint)
-API_KEY = st.secrets["Clé secrète"]
-AZURE_ENDPOINT = st.secrets["Lien connexion"]
+API_KEY = os.getenv("AZ_OPENAI_API")
+AZURE_ENDPOINT = os.getenv("AZ_OPENAI_ENDPOINT")
 
 def azure_llm_predict(prompt):
     headers = {"Content-Type": "application/json", "api-key": API_KEY}
