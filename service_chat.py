@@ -37,28 +37,9 @@ chat_css = """
     align-self: flex-end;
 }
 
-/* Masquer le bouton "Envoyer" de Streamlit (st.form_submit_button) */
+/* Masquer le bouton "Envoyer" par défaut de Streamlit (st.form_submit_button) */
 button[kind="primary"] {
     display: none !important;
-}
-
-/* Container autour du champ de saisie et de l'icône */
-.input-row {
-    display: flex;
-    align-items: center;
-    background-color: #F9F9F9;
-    border: 1px solid #DDD;
-    border-radius: 6px;
-    padding: 6px 10px;
-}
-
-/* Champ texte custom */
-.input-row input[type="text"] {
-    flex: 1;
-    border: none;
-    outline: none;
-    background: transparent;
-    font-size: 15px;
 }
 
 /* Bouton icône "paper plane" */
@@ -67,7 +48,7 @@ button[kind="primary"] {
     background: none;
     cursor: pointer;
     padding: 0;
-    margin: 0 0 0 8px;
+    margin: 0 0 0 6px;
     display: flex;
     align-items: center;
 }
@@ -122,28 +103,32 @@ def page_chat():
 
     # -- Formulaire pour gérer l'envoi du message (Enter + icône) --
     with st.form("chat_form", clear_on_submit=True):
-        # On met un champ texte + bouton icône dans un même conteneur
-        st.markdown("<div class='input-row'>", unsafe_allow_html=True)
-        user_input = st.text_input(
-            label="",
-            placeholder="Tapez votre message ici et appuyez sur Entrée...",
-            key="user_input"
-        )
-        # Bouton masqué de Streamlit (nécessaire pour que 'Enter' soumette le formulaire)
-        submit = st.form_submit_button("Envoyer")
-
-        # Bouton HTML (icône) placé à droite, type="submit" pour déclencher la soumission
-        st.markdown(
-            """
-            <button class="send-button" type="submit">
-                <svg width="22" height="22" viewBox="0 0 24 24">
-                  <path fill="#0066FF" d="M2.01 21l20.99-9L2.01 3v7l15 2-15 2z"/>
-                </svg>
-            </button>
-            """,
-            unsafe_allow_html=True
-        )
-        st.markdown("</div>", unsafe_allow_html=True)
+        # On utilise deux colonnes pour aligner champ et icône sur la même ligne
+        col1, col2 = st.columns([10, 1])
+        
+        # -- Colonne 1 : champ texte --
+        with col1:
+            user_input = st.text_input(
+                label="",
+                placeholder="Tapez votre message ici et appuyez sur Entrée...",
+                key="user_input"
+            )
+        
+        # -- Colonne 2 : le bouton icône (HTML) --
+        with col2:
+            st.markdown(
+                """
+                <button class="send-button" type="submit">
+                    <svg width="22" height="22" viewBox="0 0 24 24">
+                      <path fill="#0066FF" d="M2.01 21l20.99-9L2.01 3v7l15 2-15 2z"/>
+                    </svg>
+                </button>
+                """,
+                unsafe_allow_html=True
+            )
+        
+        # Bouton "vide" nécessaire pour gérer la soumission du formulaire via Entrée
+        submit = st.form_submit_button(label="")
 
     # -- Lorsque le formulaire est soumis (Entrée ou clic sur l'icône) --
     if submit and user_input.strip():
