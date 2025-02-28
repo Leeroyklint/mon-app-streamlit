@@ -3,8 +3,10 @@ import requests
 import os
 
 def azure_llm_chat(messages):
-    API_KEY = os.getenv("AZ_OPENAI_API")
-    AZURE_ENDPOINT = os.getenv("AZ_OPENAI_ENDPOINT")
+    API_KEY = st.secrets["Clé secrète"]
+    AZURE_ENDPOINT = st.secrets["Lien connexion"]
+    # API_KEY = os.getenv("AZ_OPENAI_API")
+    # AZURE_ENDPOINT = os.getenv("AZ_OPENAI_ENDPOINT")
     headers = {"Content-Type": "application/json", "api-key": API_KEY}
     data = {"messages": messages, "max_tokens": 2048}
     response = requests.post(AZURE_ENDPOINT, headers=headers, json=data)
