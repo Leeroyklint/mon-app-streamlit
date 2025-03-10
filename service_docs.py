@@ -14,7 +14,6 @@ import json  # Ajout pour la conversion
 # Import DB functions
 from db import create_conversation, get_conversation, update_conversation
 
-load_dotenv()
 
 def azure_llm_chat(messages, model="GPT 4o-mini"):
     """
