@@ -3,9 +3,7 @@ import os
 from azure.cosmos import CosmosClient
 from datetime import datetime
 import uuid
-from dotenv import load_dotenv
 
-load_dotenv()
 
 COSMOS_ENDPOINT = os.getenv("COSMOS_ENDPOINT")           
 COSMOS_KEY = os.getenv("COSMOS_KEY")                     
