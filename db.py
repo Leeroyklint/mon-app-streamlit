@@ -1,13 +1,11 @@
-# db.py
 import os
 from azure.cosmos import CosmosClient
 from datetime import datetime
 import uuid
 
-
-COSMOS_ENDPOINT = os.getenv("COSMOS_ENDPOINT")           
-COSMOS_KEY = os.getenv("COSMOS_KEY")                     
-DATABASE_NAME = os.getenv("AZE_COSMOSDB_DATABASE")       
+COSMOS_ENDPOINT = os.getenv("COSMOS_ENDPOINT")
+COSMOS_KEY = os.getenv("COSMOS_KEY")
+DATABASE_NAME = os.getenv("AZE_COSMOSDB_DATABASE")
 CONTAINER_NAME = os.getenv("AZE_COSMOSDB_CONVERSATION_CONTAINER")
 
 client = CosmosClient(COSMOS_ENDPOINT, credential=COSMOS_KEY)
@@ -37,18 +35,18 @@ def create_conversation(entra_oid: str, initial_message: str = None, conversatio
         "created_at": now,
         "updated_at": now,
         "messages": messages,
-        "type": conversation_type  # <-- on stocke explicitement le type
+        "type": conversation_type  # On stocke explicitement le type
     }
 
-    container.create_item(doc, entra_oid)
+    container.create_item(doc, partition_key=entra_oid)
     return doc
 
 def delete_conversation(entra_oid: str, conversation_id: str) -> None:
-    container.delete_item(conversation_id, entra_oid)
+    container.delete_item(conversation_id, partition_key=entra_oid)
 
 def get_conversation(entra_oid: str, conversation_id: str) -> dict:
     try:
-        item = container.read_item(conversation_id, entra_oid)
+        item = container.read_item(conversation_id, partition_key=entra_oid)
         return item
     except Exception as e:
         print(f"[get_conversation] Erreur : {e}")
@@ -56,12 +54,11 @@ def get_conversation(entra_oid: str, conversation_id: str) -> dict:
 
 def update_conversation(conversation_data: dict) -> None:
     """
-    Met à jour la conversation dans la base de données. 
-    Assurez-vous que 'conversation_data' contient bien 'type' si nécessaire.
+    Met à jour la conversation dans la base de données.
     """
     entra_oid = conversation_data.get("entra_oid")
     conversation_data["updated_at"] = datetime.utcnow().isoformat()
-    container.upsert_item(conversation_data, entra_oid)
+    container.upsert_item(conversation_data, partition_key=entra_oid)
 
 def list_conversations(entra_oid: str) -> list:
     """
