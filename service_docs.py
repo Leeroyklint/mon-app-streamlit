@@ -8,7 +8,6 @@ from PyPDF2 import PdfReader
 from langchain_openai.embeddings.azure import AzureOpenAIEmbeddings
 from langchain_community.vectorstores import FAISS
 from langchain.text_splitter import CharacterTextSplitter
-from dotenv import load_dotenv
 import json  # Ajout pour la conversion
 
 # Import DB functions
