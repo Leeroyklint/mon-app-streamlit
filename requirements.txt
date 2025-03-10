@@ -6,4 +6,8 @@ Pillow
 python-docx
 requests
 pypdf
-
+azure-cosmos
+azure-mgmt-cosmosdb
+docx2txt
+langchain_openai
+faiss-cpu
