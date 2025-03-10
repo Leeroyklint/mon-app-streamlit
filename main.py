@@ -1,5 +1,5 @@
 import streamlit as st
-from datetime import datetime
+from datetime import datetime, timezone
 from db import create_conversation, get_conversation, update_conversation, list_conversations, delete_conversation
 from service_docs import docs_page
 import os
@@ -51,11 +51,12 @@ def display_global_history_docs(user_id):
                         st.rerun()
 
 def group_conversations_by_date(conversations):
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)  # timezone-aware
     groups = {"Aujourd’hui": [], "7 jours précédents": [], "30 jours précédents": [], "Plus anciennes": []}
     for conv in conversations:
-        dt_str = conv["updated_at"].replace("Z", "")
-        dt = datetime.fromisoformat(dt_str)
+        dt_str = conv["updated_at"].replace("Z", "")  # Suppression du "Z" pour isoformat
+        # Convertir en datetime et forcer le fuseau horaire UTC
+        dt = datetime.fromisoformat(dt_str).replace(tzinfo=timezone.utc)
         delta = now - dt
         if delta.days == 0:
             groups["Aujourd’hui"].append(conv)
