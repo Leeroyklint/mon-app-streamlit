@@ -42,13 +42,13 @@ def display_global_history_docs(user_id):
                 with col1:
                     if st.button(f"{title_truncated}", key=f"conv_{conv['id']}"):
                         st.session_state["selected_docs_conversation"] = conv["id"]
-                        st.experimental_rerun()
+                        st.rerun()
                 with col2:
                     if st.button("🗑️", key=f"delete_{conv['id']}"):
                         delete_conversation(user_id, conv["id"])
                         if st.session_state.get("selected_docs_conversation") == conv["id"]:
                             st.session_state.pop("selected_docs_conversation", None)
-                        st.experimental_rerun()
+                        st.rerun()
 
 def group_conversations_by_date(conversations):
     now = datetime.utcnow()
@@ -74,7 +74,7 @@ def new_chat():
     # Réinitialise la conversation sélectionnée pour forcer la création lors du premier message
     if "selected_docs_conversation" in st.session_state:
         st.session_state.pop("selected_docs_conversation")
-    st.experimental_rerun()
+    st.rerun()
 
 ############################
 # Récupération de l'ID utilisateur
