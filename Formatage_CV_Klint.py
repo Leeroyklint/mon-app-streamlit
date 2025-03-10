@@ -2,6 +2,9 @@ import streamlit as st
 from datetime import datetime
 from db import create_conversation, get_conversation, update_conversation, list_conversations, delete_conversation
 from service_docs import docs_page
+import os
+import base64
+import json
 
 ############################
 # Tronquer le titre
@@ -39,13 +42,13 @@ def display_global_history_docs(user_id):
                 with col1:
                     if st.button(f"{title_truncated}", key=f"conv_{conv['id']}"):
                         st.session_state["selected_docs_conversation"] = conv["id"]
-                        st.rerun()
+                        st.experimental_rerun()
                 with col2:
                     if st.button("🗑️", key=f"delete_{conv['id']}"):
                         delete_conversation(user_id, conv["id"])
                         if st.session_state.get("selected_docs_conversation") == conv["id"]:
                             st.session_state.pop("selected_docs_conversation", None)
-                        st.rerun()
+                        st.experimental_rerun()
 
 def group_conversations_by_date(conversations):
     now = datetime.utcnow()
@@ -71,7 +74,32 @@ def new_chat():
     # Réinitialise la conversation sélectionnée pour forcer la création lors du premier message
     if "selected_docs_conversation" in st.session_state:
         st.session_state.pop("selected_docs_conversation")
-    st.rerun()
+    st.experimental_rerun()
+
+############################
+# Récupération de l'ID utilisateur
+############################
+def get_current_user_oid():
+    """
+    Récupère l'Object ID (oid) de l'utilisateur authentifié via App Service Auth.
+    Retourne None si non trouvé.
+    """
+    # La variable peut être "X_MS_CLIENT_PRINCIPAL" ou "X-MS-CLIENT-PRINCIPAL"
+    principal = os.environ.get("X_MS_CLIENT_PRINCIPAL")
+    if not principal:
+        return None
+
+    try:
+        decoded = base64.b64decode(principal).decode("utf-8")
+        data = json.loads(decoded)
+    except Exception as e:
+        print(f"Erreur lors du décodage de X_MS_CLIENT_PRINCIPAL: {e}")
+        return None
+
+    # Recherche du claim "oid" dans la liste des claims
+    oid_claim = next((claim["val"] for claim in data.get("claims", []) if claim["typ"] == "oid"), None)
+    # Fallback sur userId ou userDetails si "oid" n'est pas trouvé
+    return oid_claim or data.get("userId") or data.get("userDetails")
 
 ############################
 # Fonction principale
@@ -114,18 +142,24 @@ def main():
         unsafe_allow_html=True
     )
 
-    user_id = "user-123"
-    
-    # Le bouton "💬 Chat" réinitialise l'ID de conversation pour "ouvrir" une nouvelle conversation,
-    # la conversation sera créée lors de l'envoi du premier message dans docs_page.
+    # Récupérer l'OID de l'utilisateur via la fonction définie plus haut
+    user_oid = get_current_user_oid()
+    if not user_oid:
+        st.error("Vous n'êtes pas authentifié ou aucune information d'utilisateur n'a été trouvée.")
+        st.stop()  # On arrête l'exécution si l'utilisateur n'est pas authentifié
+
+    # Stocker l'ID utilisateur dans la session
+    st.session_state["entra_oid"] = user_oid
+
+    # Bouton pour démarrer une nouvelle conversation
     if st.sidebar.button("💬🤖 Chat Azure OpenAI 🤖💬", key="new_chat"):
         new_chat()
 
     display_model_selector()
-    display_global_history_docs(user_id)
+    display_global_history_docs(st.session_state["entra_oid"])
 
     selected_model = st.session_state.get("selected_model", "GPT 4o-mini")
-    docs_page(user_id, selected_model)
+    docs_page(st.session_state["entra_oid"], selected_model)
 
 if __name__ == "__main__":
     main()
