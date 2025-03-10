@@ -11,3 +11,4 @@ azure-mgmt-cosmosdb
 docx2txt
 langchain_openai
 faiss-cpu
+PyPDF2
