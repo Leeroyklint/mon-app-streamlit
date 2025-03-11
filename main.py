@@ -78,18 +78,17 @@ def new_chat():
     st.rerun()
 
 ############################
-# Récupération de l'ID utilisateur
+# Récupération des infos utilisateur
 ############################
-def get_current_user_oid():
+def get_current_user_info():
     """
-    Récupère l'Object ID (oid) de l'utilisateur authentifié via App Service Auth.
-    Retourne None si non trouvé.
+    Récupère les informations de l'utilisateur depuis la variable d'environnement
+    X_MS_CLIENT_PRINCIPAL (définie par le middleware WSGI).
+    Retourne un dict avec 'oid' et 'name'.
     """
-    # La variable peut être "X_MS_CLIENT_PRINCIPAL" ou "X-MS-CLIENT-PRINCIPAL"
     principal = os.environ.get("X_MS_CLIENT_PRINCIPAL")
     if not principal:
         return None
-
     try:
         decoded = base64.b64decode(principal).decode("utf-8")
         data = json.loads(decoded)
@@ -97,10 +96,14 @@ def get_current_user_oid():
         print(f"Erreur lors du décodage de X_MS_CLIENT_PRINCIPAL: {e}")
         return None
 
-    # Recherche du claim "oid" dans la liste des claims
-    oid_claim = next((claim["val"] for claim in data.get("claims", []) if claim["typ"] == "oid"), None)
-    # Fallback sur userId ou userDetails si "oid" n'est pas trouvé
-    return oid_claim or data.get("userId") or data.get("userDetails")
+    # Extraire l'ID utilisateur
+    oid = next((claim["val"] for claim in data.get("claims", []) if claim["typ"] == "oid"), None)
+    # Extraire le nom (ou email) via le claim "name" ou "preferred_username"
+    name = next((claim["val"] for claim in data.get("claims", []) if claim["typ"].lower() in ["name", "preferred_username"]), None)
+    if not name:
+        name = data.get("userId") or data.get("userDetails")
+    
+    return {"oid": oid, "name": name}
 
 ############################
 # Fonction principale
@@ -129,7 +132,6 @@ def main():
         div.stButton > button:hover {
             background-color: rgba(255,255,255,0.2) !important;
         }
-        /* Réduire la largeur du selectbox du modèle */
         [data-baseweb="select"] {
             margin-top: 8px;
             width: 150px !important;
@@ -143,14 +145,17 @@ def main():
         unsafe_allow_html=True
     )
 
-    # Récupérer l'OID de l'utilisateur via la fonction définie plus haut
-    user_oid = get_current_user_oid()
-    if not user_oid:
+    # Récupération des infos utilisateur (ID et nom)
+    user_info = get_current_user_info()
+    if not user_info or not user_info.get("oid"):
         st.error("Vous n'êtes pas authentifié ou aucune information d'utilisateur n'a été trouvée.")
-        st.stop()  # On arrête l'exécution si l'utilisateur n'est pas authentifié
+        st.stop()
 
     # Stocker l'ID utilisateur dans la session
-    st.session_state["entra_oid"] = user_oid
+    st.session_state["entra_oid"] = user_info["oid"]
+
+    # Afficher le nom de l'utilisateur dans la sidebar, en haut du chat
+    st.sidebar.markdown(f"### Connecté en tant que **{user_info.get('name', 'Utilisateur inconnu')}**")
 
     # Bouton pour démarrer une nouvelle conversation
     if st.sidebar.button("💬🤖 Chat Azure OpenAI 🤖💬", key="new_chat"):
