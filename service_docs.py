@@ -1,4 +1,3 @@
-# service_docs.py
 import streamlit as st
 import requests
 import os
@@ -8,17 +7,11 @@ from PyPDF2 import PdfReader
 from langchain_openai.embeddings.azure import AzureOpenAIEmbeddings
 from langchain_community.vectorstores import FAISS
 from langchain.text_splitter import CharacterTextSplitter
-import json  # Ajout pour la conversion
+import json
 
-# Import DB functions
 from db import create_conversation, get_conversation, update_conversation
 
-
 def azure_llm_chat(messages, model="GPT 4o-mini"):
-    """
-    Envoie la liste de messages à Azure OpenAI pour la partie Docs.
-    Sélection dynamique de la clé API et du endpoint selon le modèle choisi.
-    """
     if model == "GPT 4o-mini":
         API_KEY = os.getenv("AZ_OPENAI_API_4o_mini_ada_002")
         AZURE_ENDPOINT = os.getenv("AZ_OPENAI_ENDPOINT_4o_mini")
@@ -28,14 +21,13 @@ def azure_llm_chat(messages, model="GPT 4o-mini"):
     elif model == "GPT o1-mini - Maintenance":
         API_KEY = os.getenv("AZ_OPENAI_API_o1_mini")
         AZURE_ENDPOINT = os.getenv("AZ_OPENAI_ENDPOINT_o1_mini")
-
+    
     headers = {"Content-Type": "application/json", "api-key": API_KEY}
     data = {
         "messages": messages,
         "max_tokens": 2048,
         "model": model
     }
-
     response = requests.post(AZURE_ENDPOINT, headers=headers, json=data)
     if response.status_code == 200:
         result = response.json()
@@ -43,7 +35,6 @@ def azure_llm_chat(messages, model="GPT 4o-mini"):
     else:
         return f"Erreur {response.status_code}: {response.text}"
 
-# ---- Fonctions de parsing ----
 def parse_pdf(file) -> str:
     pdf_reader = PdfReader(file)
     text = ""
@@ -79,7 +70,6 @@ def parse_uploaded_file(file) -> str:
     else:
         return ""
 
-# ---- Embeddings & Vectorstore ----
 def get_text_chunks(text: str, chunk_size=1000, overlap=200):
     text_splitter = CharacterTextSplitter(
         separator="\n",
@@ -100,39 +90,27 @@ def build_vectorstore_from_texts(texts):
     return vectorstore
 
 def docs_page(user_id, selected_model):
-    """
-    Page Docs – Indexation des documents lors de l'import.
-    La conversation n'est créée qu'au premier message de l'utilisateur.
-    La conversation est marquée en type "doc" pour la différencier du Chat.
-    Les documents uploadés sont enregistrés sous forme de liste unique de dictionnaires.
-    """
     st.markdown("<h1 style='text-align: center;'>💬 Chat Azure OpenAI</h1>", unsafe_allow_html=True)
     st.sidebar.markdown("---")
 
-    # 1) Upload de documents
     uploaded_files = st.sidebar.file_uploader(
         "Importer",
         type=["pdf", "docx", "txt", "csv"],
         accept_multiple_files=True
     )
     if uploaded_files:
-        # Créer une liste de documents uniques
         uploaded_docs = st.session_state.get("uploaded_docs", [])
         for file in uploaded_files:
             doc_name = file.name
-            # Vérifier si ce document a déjà été importé
             if not any(doc["name"] == doc_name for doc in uploaded_docs):
                 file_text = parse_uploaded_file(file)
                 uploaded_docs.append({"name": doc_name, "content": file_text})
         st.session_state.uploaded_docs = uploaded_docs
 
-    # 2) Reconstitution du vectorstore à partir des documents uploadés
     if not st.session_state.get("doc_vectorstore"):
         docs_text = ""
-        # Si une conversation Docs existe et contient des documents, on les utilise
         if "selected_docs_conversation" in st.session_state:
             conversation_data = get_conversation(user_id, st.session_state["selected_docs_conversation"])
-            # Conversion du champ documents s'il s'agit d'une chaîne JSON
             if conversation_data and "documents" in conversation_data and isinstance(conversation_data["documents"], str):
                 try:
                     conversation_data["documents"] = json.loads(conversation_data["documents"])
@@ -141,7 +119,6 @@ def docs_page(user_id, selected_model):
                     conversation_data["documents"] = []
             if conversation_data and "documents" in conversation_data:
                 docs_text = "\n".join(doc["content"] for doc in conversation_data["documents"])
-        # Sinon, on utilise les documents uploadés en session
         if not docs_text and st.session_state.get("uploaded_docs"):
             docs_text = "\n".join(doc["content"] for doc in st.session_state.uploaded_docs)
         if docs_text:
@@ -149,11 +126,9 @@ def docs_page(user_id, selected_model):
             vectorstore = build_vectorstore_from_texts(text_chunks)
             st.session_state.doc_vectorstore = vectorstore
 
-    # 3) Récupération de la conversation Docs existante (si elle a été créée)
     conversation_data = None
     if "selected_docs_conversation" in st.session_state:
         conversation_data = get_conversation(user_id, st.session_state["selected_docs_conversation"])
-        # Conversion du champ documents s'il s'agit d'une chaîne JSON
         if conversation_data and "documents" in conversation_data and isinstance(conversation_data["documents"], str):
             try:
                 conversation_data["documents"] = json.loads(conversation_data["documents"])
@@ -161,7 +136,6 @@ def docs_page(user_id, selected_model):
                 st.error("Erreur de décodage des documents enregistrés.")
                 conversation_data["documents"] = []
 
-    # 4) Affichage des noms uniques des documents importés (s'il y en a)
     if conversation_data and "documents" in conversation_data and conversation_data["documents"]:
         doc_names = [doc["name"] for doc in conversation_data["documents"]]
         if doc_names:
@@ -171,18 +145,15 @@ def docs_page(user_id, selected_model):
         if doc_names:
             st.info("Documents en mémoire : " + ", ".join(doc_names))
 
-    # 5) Affichage de l'historique de la conversation (si elle existe)
     if conversation_data:
         for msg in conversation_data["messages"]:
             with st.chat_message(msg["role"]):
                 st.markdown(msg["content"])
 
-    # 6) Saisie utilisateur pour démarrer ou poursuivre la conversation
     user_input = st.chat_input("Posez votre question sur vos documents...")
     if user_input:
         if not conversation_data:
             conversation_data = create_conversation(user_id, initial_message=user_input, conversation_type="doc")
-            # Si des documents ont été uploadés en session, on les enregistre dans la conversation
             if st.session_state.get("uploaded_docs"):
                 conversation_data["documents"] = st.session_state.uploaded_docs
                 st.session_state.pop("uploaded_docs")
