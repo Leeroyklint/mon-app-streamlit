@@ -1,23 +1,21 @@
 import streamlit as st
-import json, time
+import json
+import base64
+import jwt  # Assure-toi d'avoir installé PyJWT (pip install pyjwt)
+import os
 from datetime import datetime, timezone
 
-# Import de la librairie pour exécuter du JavaScript et récupérer son retour
-from streamlit_javascript import st_javascript
-
-# Import de tes fonctions pour gérer l'historique et les documents
+# Import de tes fonctions pour gérer la base de données et la logique du chatbot
 from db import create_conversation, get_conversation, update_conversation, list_conversations, delete_conversation
 from service_docs import docs_page
 
 ############################
-# Tronquer le titre
+# Fonctions utilitaires
 ############################
 def truncate_title(title, max_length=20):
+    """Retourne le titre tronqué à max_length caractères avec '...' si besoin."""
     return title if len(title) <= max_length else title[:max_length] + "..."
 
-############################
-# Sélecteur de modèle
-############################
 def display_model_selector():
     selected_model = st.selectbox(
         "Sélectionner un modèle", 
@@ -25,31 +23,6 @@ def display_model_selector():
         label_visibility="collapsed"
     )
     st.session_state["selected_model"] = selected_model
-
-############################
-# Historique des conversations Docs
-############################
-def display_global_history_docs(user_id):
-    docs_convs = [conv for conv in list_conversations(user_id) if conv.get("type") == "doc"]
-    grouped_convs = group_conversations_by_date(docs_convs)
-    group_order = ["Aujourd’hui", "7 jours précédents", "30 jours précédents", "Plus anciennes"]
-    for group in group_order:
-        convs = grouped_convs.get(group, [])
-        if convs:
-            st.sidebar.markdown(f"#### {group}")
-            for conv in convs:
-                title_truncated = truncate_title(conv["title"], max_length=20)
-                col1, col2 = st.sidebar.columns([0.85, 0.15], gap="small")
-                with col1:
-                    if st.button(f"{title_truncated}", key=f"conv_{conv['id']}"):
-                        st.session_state["selected_docs_conversation"] = conv["id"]
-                        st.rerun()
-                with col2:
-                    if st.button("🗑️", key=f"delete_{conv['id']}"):
-                        delete_conversation(user_id, conv["id"])
-                        if st.session_state.get("selected_docs_conversation") == conv["id"]:
-                            st.session_state.pop("selected_docs_conversation", None)
-                        st.rerun()
 
 def group_conversations_by_date(conversations):
     now = datetime.now(timezone.utc)
@@ -68,43 +41,65 @@ def group_conversations_by_date(conversations):
             groups["Plus anciennes"].append(conv)
     return groups
 
-############################
-# Bouton nouvelle conversation
-############################
+def display_global_history_docs(user_id):
+    docs_convs = [conv for conv in list_conversations(user_id) if conv.get("type") == "doc"]
+    grouped_convs = group_conversations_by_date(docs_convs)
+    group_order = ["Aujourd’hui", "7 jours précédents", "30 jours précédents", "Plus anciennes"]
+    for group in group_order:
+        convs = grouped_convs.get(group, [])
+        if convs:
+            st.sidebar.markdown(f"#### {group}")
+            for conv in convs:
+                title_truncated = truncate_title(conv["title"], max_length=20)
+                col1, col2 = st.sidebar.columns([0.85, 0.15], gap="small")
+                with col1:
+                    if st.button(f"{title_truncated}", key=f"conv_{conv['id']}"):
+                        st.session_state["selected_docs_conversation"] = conv["id"]
+                        st.experimental_rerun()
+                with col2:
+                    if st.button("🗑️", key=f"delete_{conv['id']}"):
+                        delete_conversation(user_id, conv["id"])
+                        if st.session_state.get("selected_docs_conversation") == conv["id"]:
+                            st.session_state.pop("selected_docs_conversation", None)
+                        st.experimental_rerun()
+
 def new_chat():
     if "selected_docs_conversation" in st.session_state:
         st.session_state.pop("selected_docs_conversation")
-    st.rerun()
+    st.experimental_rerun()
 
 ############################
-# Récupération de l'authentification via JS
+# Récupération et décodage du token Azure Easy Auth
 ############################
-def get_user_data():
+def get_user_details():
     """
-    Exécute un script JavaScript pour appeler '/.auth/me'
-    et récupérer le user_id.
+    Récupère le token d'accès Azure (X-Ms-Token-Aad-Access-Token) depuis les headers,
+    le décode et retourne un dictionnaire contenant 'oid', 'name', 'upn', etc.
     """
-    js_code = """
-    await (async () => {
-        try {
-            const response = await fetch('/.auth/me');
-            if (response.ok) {
-                const authDetails = await response.json();
-                if (authDetails && authDetails[0] && authDetails[0].user_id) {
-                    return { "user_id": authDetails[0].user_id, "data": authDetails };
-                } else {
-                    return { "error": "No user_id found", "data": authDetails };
-                }
-            } else {
-                return { "error": "Failed to fetch /.auth/me", "data": null };
-            }
-        } catch (error) {
-            return { "error": error.message, "data": null };
-        }
-    })();
+    # st.context.headers est disponible si l'application est déployée avec Easy Auth
+    headers = st.context.headers
+    token = headers.get("X-Ms-Token-Aad-Access-Token")
+    if not token:
+        return None
+    try:
+        # Décodage du token sans vérifier la signature (pour extraire les claims)
+        decoded = jwt.decode(token, algorithms=["RS256"], options={"verify_signature": False})
+        return decoded
+    except Exception as e:
+        st.error(f"Erreur lors du décodage du token : {e}")
+        return None
+
+def get_current_user_info():
     """
-    # La fonction st_javascript exécute le code JS et renvoie la valeur retournée (attendue en JSON).
-    return st_javascript(js_code)
+    Utilise le token décodé pour extraire l'oid et le nom de l'utilisateur.
+    """
+    decoded = get_user_details()
+    if not decoded:
+        return None
+    oid = decoded.get("oid")
+    # On peut utiliser "name" ou "preferred_username" ou "upn" selon la configuration
+    name = decoded.get("name") or decoded.get("preferred_username") or decoded.get("upn")
+    return {"oid": oid, "name": name}
 
 ############################
 # Fonction principale
@@ -124,22 +119,15 @@ def main():
         unsafe_allow_html=True
     )
 
-    # Récupérer les infos utilisateur via JS
-    user_data = get_user_data()
-    if not user_data:
-        st.error("En attente d'authentification via Azure AD (/.auth/me)...")
-        st.stop()
-    if user_data.get("error"):
-        st.error(f"Erreur d'authentification: {user_data.get('error')}")
-        st.stop()
-    user_id = user_data.get("user_id")
-    if not user_id:
-        st.error("Aucun user_id n'a été récupéré.")
+    # Récupération des informations utilisateur via Easy Auth
+    user_info = get_current_user_info()
+    if not user_info or not user_info.get("oid"):
+        st.error("Vous n'êtes pas authentifié ou aucune information d'utilisateur n'a été trouvée.")
         st.stop()
 
-    st.session_state["entra_oid"] = user_id
-    st.sidebar.markdown(f"### Connecté en tant que **{user_id}**")
-
+    st.session_state["entra_oid"] = user_info["oid"]
+    st.sidebar.markdown(f"### Connecté en tant que **{user_info.get('name', 'Utilisateur inconnu')}**")
+    
     if st.sidebar.button("💬🤖 Chat Azure OpenAI 🤖💬", key="new_chat"):
         new_chat()
 
