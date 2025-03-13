@@ -1,11 +1,11 @@
 import streamlit as st
 import json
 import base64
-import jwt  # Assure-toi d'avoir installé PyJWT (pip install pyjwt)
+import jwt  # Assurez-vous d'avoir PyJWT installé
 import os
 from datetime import datetime, timezone
 
-# Import de tes fonctions pour gérer la base de données et la logique du chatbot
+# Import de vos fonctions pour la gestion de la base de données et la logique du chatbot
 from db import create_conversation, get_conversation, update_conversation, list_conversations, delete_conversation
 from service_docs import docs_page
 
@@ -55,18 +55,18 @@ def display_global_history_docs(user_id):
                 with col1:
                     if st.button(f"{title_truncated}", key=f"conv_{conv['id']}"):
                         st.session_state["selected_docs_conversation"] = conv["id"]
-                        st.experimental_rerun()
+                        st.rerun()
                 with col2:
                     if st.button("🗑️", key=f"delete_{conv['id']}"):
                         delete_conversation(user_id, conv["id"])
                         if st.session_state.get("selected_docs_conversation") == conv["id"]:
                             st.session_state.pop("selected_docs_conversation", None)
-                        st.experimental_rerun()
+                        st.rerun()
 
 def new_chat():
     if "selected_docs_conversation" in st.session_state:
         st.session_state.pop("selected_docs_conversation")
-    st.experimental_rerun()
+    st.rerun()
 
 ############################
 # Récupération et décodage du token Azure Easy Auth
@@ -74,9 +74,9 @@ def new_chat():
 def get_user_details():
     """
     Récupère le token d'accès Azure (X-Ms-Token-Aad-Access-Token) depuis les headers,
-    le décode et retourne un dictionnaire contenant 'oid', 'name', 'upn', etc.
+    le décode et retourne un dictionnaire contenant les claims.
     """
-    # st.context.headers est disponible si l'application est déployée avec Easy Auth
+    # st.context.headers est disponible si l'app est déployée avec Easy Auth
     headers = st.context.headers
     token = headers.get("X-Ms-Token-Aad-Access-Token")
     if not token:
@@ -97,7 +97,7 @@ def get_current_user_info():
     if not decoded:
         return None
     oid = decoded.get("oid")
-    # On peut utiliser "name" ou "preferred_username" ou "upn" selon la configuration
+    # On peut utiliser "name", "preferred_username" ou "upn" selon la configuration de votre Azure AD
     name = decoded.get("name") or decoded.get("preferred_username") or decoded.get("upn")
     return {"oid": oid, "name": name}
 
@@ -127,7 +127,7 @@ def main():
 
     st.session_state["entra_oid"] = user_info["oid"]
     st.sidebar.markdown(f"### Connecté en tant que **{user_info.get('name', 'Utilisateur inconnu')}**")
-    
+
     if st.sidebar.button("💬🤖 Chat Azure OpenAI 🤖💬", key="new_chat"):
         new_chat()
 
