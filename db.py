@@ -13,11 +13,15 @@ database = client.get_database_client(DATABASE_NAME)
 container = database.get_container_client(CONTAINER_NAME)
 
 def create_conversation(entra_oid: str, initial_message: str = None, conversation_type="chat") -> dict:
+    """
+    Crée une nouvelle conversation dans la base de données,
+    avec un type par défaut = 'chat' (ou 'doc' pour la partie docs).
+    """
     conversation_id = str(uuid.uuid4())
     now = datetime.utcnow().isoformat()
     
     if initial_message:
-        title = initial_message[:30]
+        title = initial_message[:30]  # Titre basé sur les premiers caractères du message
         messages = [{"role": "user", "content": initial_message}]
     else:
         title = f"Nouveau Chat {now[:19]}"
@@ -25,16 +29,17 @@ def create_conversation(entra_oid: str, initial_message: str = None, conversatio
     
     doc = {
         "id": conversation_id,
-        "entra_oid": entra_oid,
+        "entra_oid": entra_oid,  # Ce champ sera utilisé comme partition key
         "session_id": conversation_id,
         "title": title,
         "created_at": now,
         "updated_at": now,
         "messages": messages,
-        "type": conversation_type
+        "type": conversation_type  # On stocke explicitement le type
     }
     
-    container.create_item(doc, partition_key=entra_oid)
+    # La modification est ici : on ne passe pas "partition_key"
+    container.create_item(doc)
     return doc
 
 def delete_conversation(entra_oid: str, conversation_id: str) -> None:
@@ -42,17 +47,25 @@ def delete_conversation(entra_oid: str, conversation_id: str) -> None:
 
 def get_conversation(entra_oid: str, conversation_id: str) -> dict:
     try:
-        return container.read_item(conversation_id, partition_key=entra_oid)
+        item = container.read_item(conversation_id, partition_key=entra_oid)
+        return item
     except Exception as e:
         print(f"[get_conversation] Erreur : {e}")
         return None
 
 def update_conversation(conversation_data: dict) -> None:
+    """
+    Met à jour la conversation dans la base de données.
+    """
     entra_oid = conversation_data.get("entra_oid")
     conversation_data["updated_at"] = datetime.utcnow().isoformat()
     container.upsert_item(conversation_data, partition_key=entra_oid)
 
 def list_conversations(entra_oid: str) -> list:
+    """
+    Récupère la liste des conversations de l'utilisateur,
+    en incluant le champ 'type' pour distinguer 'chat' de 'doc'.
+    """
     query = (
         "SELECT c.id, c.title, c.created_at, c.updated_at, c.type "
         "FROM c "
