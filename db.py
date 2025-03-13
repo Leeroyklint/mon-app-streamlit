@@ -29,7 +29,7 @@ def create_conversation(entra_oid: str, initial_message: str = None, conversatio
     
     doc = {
         "id": conversation_id,
-        "entra_oid": entra_oid,  # Ce champ sera utilisé comme partition key
+        "entra_oid": entra_oid,  # Cette valeur correspond à la clé de partition déjà définie dans le conteneur
         "session_id": conversation_id,
         "title": title,
         "created_at": now,
@@ -38,7 +38,7 @@ def create_conversation(entra_oid: str, initial_message: str = None, conversatio
         "type": conversation_type  # On stocke explicitement le type
     }
     
-    # La modification est ici : on ne passe pas "partition_key"
+    # On ne passe pas 'partition_key' ici car le conteneur est déjà configuré avec cette clé
     container.create_item(doc)
     return doc
 
@@ -59,7 +59,8 @@ def update_conversation(conversation_data: dict) -> None:
     """
     entra_oid = conversation_data.get("entra_oid")
     conversation_data["updated_at"] = datetime.utcnow().isoformat()
-    container.upsert_item(conversation_data, partition_key=entra_oid)
+    # Ici aussi, pas besoin de passer 'partition_key'
+    container.upsert_item(conversation_data)
 
 def list_conversations(entra_oid: str) -> list:
     """
