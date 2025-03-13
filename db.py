@@ -42,8 +42,7 @@ def delete_conversation(entra_oid: str, conversation_id: str) -> None:
 
 def get_conversation(entra_oid: str, conversation_id: str) -> dict:
     try:
-        item = container.read_item(conversation_id, partition_key=entra_oid)
-        return item
+        return container.read_item(conversation_id, partition_key=entra_oid)
     except Exception as e:
         print(f"[get_conversation] Erreur : {e}")
         return None
