@@ -35,6 +35,7 @@ def azure_llm_chat(messages, model="GPT 4o-mini"):
     else:
         return f"Erreur {response.status_code}: {response.text}"
 
+# ---- Fonctions de parsing ----
 def parse_pdf(file) -> str:
     pdf_reader = PdfReader(file)
     text = ""
@@ -70,6 +71,7 @@ def parse_uploaded_file(file) -> str:
     else:
         return ""
 
+# ---- Embeddings & Vectorstore ----
 def get_text_chunks(text: str, chunk_size=1000, overlap=200):
     text_splitter = CharacterTextSplitter(
         separator="\n",
@@ -93,6 +95,7 @@ def docs_page(user_id, selected_model):
     st.markdown("<h1 style='text-align: center;'>💬 Chat Azure OpenAI</h1>", unsafe_allow_html=True)
     st.sidebar.markdown("---")
 
+    # 1) Upload de documents
     uploaded_files = st.sidebar.file_uploader(
         "Importer",
         type=["pdf", "docx", "txt", "csv"],
@@ -107,6 +110,7 @@ def docs_page(user_id, selected_model):
                 uploaded_docs.append({"name": doc_name, "content": file_text})
         st.session_state.uploaded_docs = uploaded_docs
 
+    # 2) Reconstitution du vectorstore
     if not st.session_state.get("doc_vectorstore"):
         docs_text = ""
         if "selected_docs_conversation" in st.session_state:
@@ -126,6 +130,7 @@ def docs_page(user_id, selected_model):
             vectorstore = build_vectorstore_from_texts(text_chunks)
             st.session_state.doc_vectorstore = vectorstore
 
+    # 3) Récupération de la conversation existante
     conversation_data = None
     if "selected_docs_conversation" in st.session_state:
         conversation_data = get_conversation(user_id, st.session_state["selected_docs_conversation"])
@@ -136,6 +141,7 @@ def docs_page(user_id, selected_model):
                 st.error("Erreur de décodage des documents enregistrés.")
                 conversation_data["documents"] = []
 
+    # 4) Affichage des documents en mémoire
     if conversation_data and "documents" in conversation_data and conversation_data["documents"]:
         doc_names = [doc["name"] for doc in conversation_data["documents"]]
         if doc_names:
@@ -145,11 +151,13 @@ def docs_page(user_id, selected_model):
         if doc_names:
             st.info("Documents en mémoire : " + ", ".join(doc_names))
 
+    # 5) Affichage de l'historique de conversation
     if conversation_data:
         for msg in conversation_data["messages"]:
             with st.chat_message(msg["role"]):
                 st.markdown(msg["content"])
 
+    # 6) Saisie utilisateur
     user_input = st.chat_input("Posez votre question sur vos documents...")
     if user_input:
         if not conversation_data:
