@@ -35,7 +35,8 @@ def azure_llm_chat(messages, model="GPT 4o-mini"):
     else:
         return f"Erreur {response.status_code}: {response.text}"
 
-# ---- Fonctions de parsing ----
+# Fonctions de parsing
+
 def parse_pdf(file) -> str:
     pdf_reader = PdfReader(file)
     text = ""
@@ -71,7 +72,8 @@ def parse_uploaded_file(file) -> str:
     else:
         return ""
 
-# ---- Embeddings & Vectorstore ----
+# Embeddings et vectorisation
+
 def get_text_chunks(text: str, chunk_size=1000, overlap=200):
     text_splitter = CharacterTextSplitter(
         separator="\n",
@@ -141,7 +143,7 @@ def docs_page(user_id, selected_model):
                 st.error("Erreur de décodage des documents enregistrés.")
                 conversation_data["documents"] = []
 
-    # 4) Affichage des documents en mémoire
+    # 4) Affichage des documents importés
     if conversation_data and "documents" in conversation_data and conversation_data["documents"]:
         doc_names = [doc["name"] for doc in conversation_data["documents"]]
         if doc_names:
@@ -151,13 +153,13 @@ def docs_page(user_id, selected_model):
         if doc_names:
             st.info("Documents en mémoire : " + ", ".join(doc_names))
 
-    # 5) Affichage de l'historique de conversation
+    # 5) Affichage de l'historique de la conversation
     if conversation_data:
         for msg in conversation_data["messages"]:
             with st.chat_message(msg["role"]):
                 st.markdown(msg["content"])
 
-    # 6) Saisie utilisateur
+    # 6) Gestion des messages utilisateur
     user_input = st.chat_input("Posez votre question sur vos documents...")
     if user_input:
         if not conversation_data:
