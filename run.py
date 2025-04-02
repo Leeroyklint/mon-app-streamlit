@@ -67,8 +67,8 @@ def proxy(path):
     content = r.content
     response = Response(content, status=r.status_code)
     for key, value in r.headers.items():
-        # Exclut les headers problématiques
-        if key.lower() not in ['content-length', 'transfer-encoding']:
+        # Exclut les headers problématiques : Content-Length, Transfer-Encoding et Content-Encoding
+        if key.lower() not in ['content-length', 'transfer-encoding', 'content-encoding']:
             response.headers[key] = value
     # Définit le Content-Length en fonction du contenu réel
     response.headers['Content-Length'] = len(content)
@@ -77,6 +77,5 @@ def proxy(path):
 if __name__ == '__main__':
     t = threading.Thread(target=run_streamlit)
     t.start()
-    t.join()  # Attend que Streamlit soit opérationnel
-    # Démarre Flask sur le port 8000
+    t.join()  # Attend que Streamlit soit opérationnel avant de démarrer Flask
     app.run(host="0.0.0.0", port=8000)
