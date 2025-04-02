@@ -1,4 +1,4 @@
-from flask import Flask, Response, request, stream_with_context
+from flask import Flask, Response, request
 import subprocess
 import threading
 import requests
@@ -15,22 +15,15 @@ def run_streamlit():
         "--server.port", "8501",
         "--server.address", "127.0.0.1"
     ])
-    # Augmente le délai pour être sûr que Streamlit soit bien démarré
+    # Attendre suffisamment longtemps pour que Streamlit soit opérationnel
     time.sleep(10)
     logging.info("Streamlit devrait être opérationnel.")
 
 @app.after_request
 def apply_csp(response):
+    # Ajoute le header CSP pour autoriser Teams
     response.headers["Content-Security-Policy"] = "frame-ancestors 'self' https://*.teams.microsoft.com https://*.office.com;"
     return response
-
-def generate(streamlit_response):
-    try:
-        for chunk in streamlit_response.iter_content(chunk_size=1024):
-            if chunk:
-                yield chunk
-    except Exception as e:
-        yield f"Erreur lors du transfert des données : {e}".encode()
 
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')
@@ -38,26 +31,22 @@ def proxy(path):
     streamlit_url = f"http://127.0.0.1:8501/{path}"
     if request.query_string:
         streamlit_url += f"?{request.query_string.decode()}"
-    
     try:
-        logging.info(f"Requête proxy vers : {streamlit_url}")
-        # Utilise stream=True pour obtenir une réponse en streaming
-        streamlit_response = requests.get(streamlit_url, stream=True)
-        
-        # Crée une réponse Flask en streaming
-        response = Response(
-            stream_with_context(generate(streamlit_response)),
-            status=streamlit_response.status_code
-        )
-        
-        # Copie les headers en ignorant Content-Length et Transfer-Encoding
-        for key, value in streamlit_response.headers.items():
+        logging.info("Proxying vers : %s", streamlit_url)
+        # Récupère la réponse complète de Streamlit
+        r = requests.get(streamlit_url)
+        content = r.content
+        # Crée une réponse Flask en fixant le Content-Length correctement
+        response = Response(content, status=r.status_code)
+        for key, value in r.headers.items():
+            # Exclut les headers problématiques
             if key.lower() not in ['content-length', 'transfer-encoding']:
                 response.headers[key] = value
-        
+        # Définit le Content-Length en fonction de la taille réelle du contenu
+        response.headers['Content-Length'] = len(content)
         return apply_csp(response)
     except Exception as e:
-        logging.error(f"Erreur de connexion avec Streamlit : {e}")
+        logging.error("Erreur lors du proxying : %s", e)
         return f"Erreur de connexion avec Streamlit : {e}", 500
 
 if __name__ == '__main__':
