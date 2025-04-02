@@ -75,7 +75,8 @@ def proxy(path):
     return apply_csp(response)
 
 if __name__ == '__main__':
-    # Lance Streamlit dans un thread séparé
-    threading.Thread(target=run_streamlit).start()
+    t = threading.Thread(target=run_streamlit)
+    t.start()
+    t.join()  # Attend que Streamlit soit opérationnel
     # Démarre Flask sur le port 8000
     app.run(host="0.0.0.0", port=8000)
