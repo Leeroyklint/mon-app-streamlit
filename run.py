@@ -30,7 +30,8 @@ def run_streamlit():
     subprocess.Popen([
         "streamlit", "run", "main.py",
         "--server.port", "8501",
-        "--server.address", "127.0.0.1"
+        "--server.address", "127.0.0.1",
+        "--server.enableCORS", "false"
     ])
     # Attend que Streamlit soit disponible
     wait_for_streamlit(timeout=30)
@@ -70,9 +71,7 @@ def proxy(path):
         # Exclut les headers problématiques
         if key.lower() not in ['content-length', 'transfer-encoding', 'content-encoding']:
             response.headers[key] = value
-    # Définit le Content-Length en fonction du contenu réel
     response.headers['Content-Length'] = len(content)
-    # Supprime explicitement le header Content-Encoding s'il est présent
     if 'Content-Encoding' in response.headers:
         del response.headers['Content-Encoding']
     return apply_csp(response)
