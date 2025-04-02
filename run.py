@@ -67,15 +67,18 @@ def proxy(path):
     content = r.content
     response = Response(content, status=r.status_code)
     for key, value in r.headers.items():
-        # Exclut les headers problématiques : Content-Length, Transfer-Encoding et Content-Encoding
+        # Exclut les headers problématiques
         if key.lower() not in ['content-length', 'transfer-encoding', 'content-encoding']:
             response.headers[key] = value
     # Définit le Content-Length en fonction du contenu réel
     response.headers['Content-Length'] = len(content)
+    # Supprime explicitement le header Content-Encoding s'il est présent
+    if 'Content-Encoding' in response.headers:
+        del response.headers['Content-Encoding']
     return apply_csp(response)
 
 if __name__ == '__main__':
     t = threading.Thread(target=run_streamlit)
     t.start()
-    t.join()  # Attend que Streamlit soit opérationnel avant de démarrer Flask
+    t.join()  # Attend que Streamlit soit opérationnel
     app.run(host="0.0.0.0", port=8000)
