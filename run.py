@@ -9,21 +9,22 @@ import socket
 app = Flask(__name__)
 logging.basicConfig(level=logging.INFO)
 
-# Cette fonction attend que Streamlit soit disponible sur le port 8501
 def wait_for_streamlit(timeout=30):
+    """
+    Attend que Streamlit soit disponible sur 127.0.0.1:8501.
+    """
     start_time = time.time()
     while True:
         try:
             with socket.create_connection(("127.0.0.1", 8501), timeout=2):
                 logging.info("Streamlit est opérationnel.")
                 return
-        except Exception:
+        except Exception as e:
             if time.time() - start_time > timeout:
                 logging.error("Timeout en attendant que Streamlit démarre.")
                 raise Exception("Timeout en attendant que Streamlit démarre.")
             time.sleep(1)
 
-# Cette fonction lance Streamlit avec les paramètres nécessaires
 def run_streamlit():
     logging.info("Démarrage de Streamlit...")
     subprocess.Popen([
@@ -32,20 +33,20 @@ def run_streamlit():
         "--server.address", "127.0.0.1",
         "--server.enableCORS", "false",
         "--server.enableXsrfProtection", "false",
-        "--server.baseUrlPath", "/"  # Forcer la racine pour que les fichiers statiques soient accessibles
+        "--server.baseUrlPath", ""
     ])
+    # Attend que Streamlit soit accessible
     wait_for_streamlit(timeout=30)
     logging.info("Streamlit devrait être opérationnel.")
 
-# Intégration du header CSP pour Teams
 @app.after_request
 def apply_csp(response):
+    # Injection du header CSP pour autoriser l'intégration dans Teams
     response.headers["Content-Security-Policy"] = (
         "frame-ancestors 'self' https://*.teams.microsoft.com https://*.office.com;"
     )
     return response
 
-# Route proxy qui relaye les requêtes vers Streamlit
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')
 def proxy(path):
@@ -71,7 +72,7 @@ def proxy(path):
     content = r.content
     response = Response(content, status=r.status_code)
     for key, value in r.headers.items():
-        # Exclure les headers qui posent problème
+        # Exclut les headers problématiques
         if key.lower() not in ['content-length', 'transfer-encoding', 'content-encoding']:
             response.headers[key] = value
     response.headers['Content-Length'] = len(content)
@@ -80,9 +81,9 @@ def proxy(path):
     return apply_csp(response)
 
 if __name__ == '__main__':
-    # Démarrer Streamlit dans un thread et attendre qu'il soit prêt
+    # Démarrer Streamlit et attendre qu'il soit opérationnel avant de lancer Flask
     t = threading.Thread(target=run_streamlit)
     t.start()
     t.join()
-    # Démarrer le serveur Flask qui agira comme proxy sur le port 8000
+    # Démarrage du serveur Flask sur le port 8000 (point d'entrée public)
     app.run(host="0.0.0.0", port=8000)
