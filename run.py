@@ -31,16 +31,20 @@ def run_streamlit():
         "streamlit", "run", "main.py",
         "--server.port", "8501",
         "--server.address", "127.0.0.1",
-        "--server.enableCORS", "false"
+        "--server.enableCORS", "false",
+        "--server.enableXsrfProtection", "false",
+        "--server.baseUrlPath", ""
     ])
-    # Attend que Streamlit soit disponible
+    # Attend que Streamlit soit accessible
     wait_for_streamlit(timeout=30)
     logging.info("Streamlit devrait être opérationnel.")
 
 @app.after_request
 def apply_csp(response):
-    # Injection du header CSP pour Teams
-    response.headers["Content-Security-Policy"] = "frame-ancestors 'self' https://*.teams.microsoft.com https://*.office.com;"
+    # Injection du header CSP pour autoriser l'intégration dans Teams
+    response.headers["Content-Security-Policy"] = (
+        "frame-ancestors 'self' https://*.teams.microsoft.com https://*.office.com;"
+    )
     return response
 
 @app.route('/', defaults={'path': ''})
@@ -48,7 +52,7 @@ def apply_csp(response):
 def proxy(path):
     streamlit_url = f"http://127.0.0.1:8501/{path}"
     if request.query_string:
-        streamlit_url += f"?{request.query_string.decode()}"
+        streamlit_url += "?" + request.query_string.decode()
     
     attempts = 0
     max_attempts = 5
@@ -77,7 +81,9 @@ def proxy(path):
     return apply_csp(response)
 
 if __name__ == '__main__':
+    # Démarrer Streamlit et attendre qu'il soit opérationnel avant de lancer Flask
     t = threading.Thread(target=run_streamlit)
     t.start()
-    t.join()  # Attend que Streamlit soit opérationnel
+    t.join()
+    # Démarrage du serveur Flask sur le port 8000 (point d'entrée public)
     app.run(host="0.0.0.0", port=8000)
