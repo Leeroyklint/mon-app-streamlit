@@ -1,0 +1,27 @@
+.chat-input-form{
+  position:fixed;bottom:5%;left:25%;width:50%;
+  padding:8px;background:#fff;border:1px solid #ced4da;border-radius:25px;
+  box-shadow:0 4px 8px rgba(0,0,0,.1);display:flex;flex-direction:column;gap:8px;
+}
+.chat-input-input{
+  padding:12px;border:0;border-radius:25px;background:#f8f9fa;width:98%;font-size:16px;
+}
+.chat-input-input:focus{background:#e9ecef;border-color:#80bdff;outline:none;}
+.chat-input-button-row{display:flex;justify-content:space-between;align-items:center;}
+.chat-input-file{display:flex;align-items:center;gap:8px;}
+.file-upload-btn,.chat-input-button{
+  padding:10px 20px;border:none;border-radius:25px;background:#e9ecef;color:#000;cursor:pointer;
+  transition:background-color .3s;
+}
+.file-upload-btn:hover,.chat-input-button:hover{background:#d1d5db;}
+
+/* === mini‑cartes fichiers ===================================== */
+.input-attachment-container{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;}
+.input-attachment{
+  display:flex;align-items:center;background:#f2f2f2;border-radius:16px;padding:6px 8px;
+}
+.file-icon{width:20px;height:20px;object-fit:contain;margin-right:8px;}
+.input-attachment-info{margin-right:8px;}
+.input-file-name{font-weight:500;}
+.input-file-type{font-size:.8em;color:#666;}
+.input-remove-btn{background:none;border:none;font-size:1.2em;cursor:pointer;color:#777;}

@@ -1,0 +1,37 @@
+/* conteneur ----------------------------------------------------- */
+.chat-messages{
+  position:fixed;top:10%;bottom:30%;left:27%;width:45%;
+  overflow-y:auto;overscroll-behavior:contain;padding:8px;
+}
+
+/* alignements --------------------------------------------------- */
+.message-item{display:flex;margin-bottom:8px;}
+.message-user{justify-content:flex-end;}
+.message-bot{justify-content:flex-start;}
+
+/* bulles -------------------------------------------------------- */
+.message-bubble{max-width:100%;display:flex;flex-direction:column;gap:8px;}
+.message-user .message-bubble{
+  background:#e6e6e6;border-radius:12px;padding:8px 12px;word-break:break-word;
+}
+.message-bot .message-bubble{background:transparent;padding:0;}
+
+/* pièces‑jointes ------------------------------------------------ */
+.message-attachments{display:flex;flex-direction:column;gap:6px;}
+.attachment{display:flex;align-items:center;background:#f2f2f2;border-radius:16px;padding:6px 8px;}
+.attachment-icon{width:20px;height:20px;object-fit:contain;margin-right:8px;}
+.attachment-info{display:flex;flex-direction:column;}
+.attachment-name{font-weight:500;}
+.attachment-type{font-size:.8em;color:#666;}
+
+/* texte utilisateur (préserve CR/LF) --------------------------- */
+.message-text{white-space:pre-wrap;font-family:inherit;font-size:14px;}
+
+/* blocs de code ------------------------------------------------- */
+.code-block{background:#1e1e1e;color:#eee;border-radius:8px;margin:6px 0;overflow:hidden;
+            font-family:"Courier New",monospace;font-size:14px;}
+.code-block-header{display:flex;justify-content:space-between;align-items:center;background:#2d2d2d;padding:4px 8px;}
+.code-lang{text-transform:uppercase;font-size:12px;letter-spacing:.3px;}
+.copy-btn{background:none;border:none;color:#ddd;font-size:12px;cursor:pointer;}
+.copy-btn:hover{color:#fff;}
+.code-block pre{margin:0;padding:12px;overflow-x:auto;}

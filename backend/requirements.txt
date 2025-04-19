@@ -1,0 +1,17 @@
+fastapi
+uvicorn
+python-multipart
+pydantic
+PyJWT
+azure-cosmos
+python-dotenv
+requests
+langchain
+faiss-cpu
+PyPDF2
+python-docx
+pandas
+openpyxl
+docx2txt
+langchain_community
+langchain_openai

@@ -1,0 +1,25 @@
+.sidebar-list-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px;
+  font-size: 14px;
+  color: #333;
+  cursor: pointer;
+}
+
+.sidebar-list-item:hover {
+  background-color: #eee;
+}
+
+.sidebar-list-item button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  color: #666;
+}
+
+.sidebar-list-item button:hover {
+  color: #000;
+}
