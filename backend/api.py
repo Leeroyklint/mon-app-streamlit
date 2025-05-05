@@ -41,6 +41,8 @@ from backend.models import (
     search_documents,
 )
 
+from backend.auth import get_current_user
+
 router = APIRouter()
 
 # ------------------------------------------------------------------
@@ -122,7 +124,8 @@ def group_conversations_by_date(convs):
 #  Routes — user / conversations
 # ------------------------------------------------------------------
 @router.get("/user")
-def me(user = Depends(get_current_user)):
+def current_user(user: dict = Depends(get_current_user)):
+    """Renvoie {entra_oid, name} pour le front."""
     return user
 
 
