@@ -48,20 +48,20 @@ router = APIRouter()
 # ------------------------------------------------------------------
 #  Auth helper
 # ------------------------------------------------------------------
-def get_current_user(request: Request):
-    """
-    Renvoie un dict (claims du JWT) ou lève 401.
-    Le jeton de dev « test2 » renvoie un utilisateur fictif.
-    """
-    tok = request.headers.get("X-Ms-Token-Aad-Access-Token")
-    if not tok:
-        raise HTTPException(status_code=401, detail="Utilisateur non authentifié")
-    try:
-        if tok == "test2":                              # jeton local dev
-            return {"entra_oid": "user-123", "name": "TestUser"}
-        return jwt.decode(tok, algorithms=["RS256"], options={"verify_signature": False})
-    except Exception as e:
-        raise HTTPException(status_code=401, detail=f"Token invalide : {e}")
+# def get_current_user(request: Request):
+#     """
+#     Renvoie un dict (claims du JWT) ou lève 401.
+#     Le jeton de dev « test2 » renvoie un utilisateur fictif.
+#     """
+#     tok = request.headers.get("X-Ms-Token-Aad-Access-Token")
+#     if not tok:
+#         raise HTTPException(status_code=401, detail="Utilisateur non authentifié")
+#     try:
+#         if tok == "test2":                              # jeton local dev
+#             return {"entra_oid": "user-123", "name": "TestUser"}
+#         return jwt.decode(tok, algorithms=["RS256"], options={"verify_signature": False})
+#     except Exception as e:
+#         raise HTTPException(status_code=401, detail=f"Token invalide : {e}")
 
 
 # ------------------------------------------------------------------
@@ -124,9 +124,8 @@ def group_conversations_by_date(convs):
 #  Routes — user / conversations
 # ------------------------------------------------------------------
 @router.get("/user")
-def current_user(user: dict = Depends(get_current_user)):
-    """Renvoie {entra_oid, name} pour le front."""
-    return user
+def current_user(u: dict = Depends(get_current_user)):
+    return u
 
 
 @router.get("/conversations")
