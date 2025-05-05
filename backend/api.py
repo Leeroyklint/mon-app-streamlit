@@ -18,7 +18,7 @@ from pydantic import BaseModel
 from typing import Optional, List
 from datetime import datetime, timezone
 
-from db import (
+from backend.db import (
     create_conversation,
     get_conversation,
     update_conversation,
@@ -30,8 +30,8 @@ from db import (
     get_project,
     update_project,
 )
-from model import azure_llm_chat
-from models import (
+from backend.model import azure_llm_chat
+from backend.models import (
     parse_pdf,
     parse_docx,
     parse_txt,
