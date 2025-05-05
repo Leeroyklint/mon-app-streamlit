@@ -3,3 +3,8 @@ __pycache__/
 frontend/dist/
 node_modules/
 *.env
+frontend/node_modules_old/
+*.tsbuildinfo
+
+frontend/node_modules_old/
+*.tsbuildinfo
