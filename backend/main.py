@@ -1,36 +1,72 @@
+"""
+Point d’entrée FastAPI – sert l’API **et** la Single‑Page‑App React
+(cf. npm run build + copie de frontend/dist → backend/static).
+
+• Liste « origins » codée en dur pour CORS
+• Catch‑all pour React Router
+"""
+
 from pathlib import Path
+
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
-from fastapi.middleware.cors import CORSMiddleware
 
-from backend.api import router   # <= ton router
+from backend.api import router
+from backend.model import azure_llm_chat
+
+
+###############################################################################
+# ──  Configuration CORS
+###############################################################################
+origins = [
+    "http://localhost:5173",                      # dev local
+    "https://klintiawebaccess.azurewebsites.net", # prod
+    "*"                                           # ← retire‑le si tu veux restreindre
+]
 
 app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "https://klintiawebaccess.azurewebsites.net",
-        "http://localhost:5173"
-    ],
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+###############################################################################
+# ──  Routes API
+###############################################################################
 app.include_router(router, prefix="/api", tags=["api"])
 
-SPA_PATH = Path(__file__).parent / "static"
+@app.get("/ping")
+def ping():
+    """Endpoint de santé (Azure Health Check)."""
+    return {"status": "ok"}
+
+@app.get("/api/test")          # démo Azure LLM (hors SPA)
+def sample_llm_call():
+    question = "Test"
+    messages = [{"role": "user", "content": question}]
+    answer = azure_llm_chat(messages)
+    return {"question": question, "answer": answer}
+
+###############################################################################
+# ──  Montage des fichiers statiques React
+###############################################################################
+SPA_PATH = Path(__file__).parent / "static"       # => backend/static (copie de frontend/dist)
 
 if SPA_PATH.exists():
-    app.mount("/static", StaticFiles(directory=SPA_PATH), name="static")
+    # 1)  Monte le dossier assets EXACTEMENT à /assets
+    assets_dir = SPA_PATH / "assets"
+    if assets_dir.exists():
+        app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
 
-    @app.get("/")
-    async def spa_root():
-        return FileResponse(SPA_PATH / "index.html")
-
+    # 2)  Catch‑all : toute URL non /api/* renvoie soit le fichier demandé,
+    #    soit index.html (pour React Router)
     @app.get("/{full_path:path}")
     async def spa_router(full_path: str):
-        file = SPA_PATH / full_path
-        return FileResponse(file if file.exists() else SPA_PATH / "index.html")
+        file_path = SPA_PATH / full_path
+        return FileResponse(file_path if file_path.is_file() else SPA_PATH / "index.html")

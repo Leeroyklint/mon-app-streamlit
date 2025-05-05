@@ -1,65 +1,65 @@
+import { authHeaders } from "./auth";
+
 const apiUrl = import.meta.env.VITE_API_URL;
-const token = "test2";
 
-export const createProject = async (name: string, instructions: string): Promise<any> => {
-  const response = await fetch(`${apiUrl}/api/projects`, {
+export const createProject = async (name: string, instructions: string) => {
+  const r = await fetch(`${apiUrl}/api/projects`, {
     method: "POST",
-    headers: { 
-      "Content-Type": "application/json",
-      "X-Ms-Token-Aad-Access-Token": token
-    },
-    body: JSON.stringify({ name, instructions })
+    headers: authHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify({ name, instructions }),
   });
-  if (!response.ok) throw new Error("Erreur lors de la création du projet.");
-  return response.json();
+  if (!r.ok) throw new Error("Erreur création projet");
+  return r.json();
 };
 
-export const getProjects = async (): Promise<any[]> => {
-  const response = await fetch(`${apiUrl}/api/projects`, {
-    headers: { "X-Ms-Token-Aad-Access-Token": token }
+export const getProjects = async () => {
+  const r = await fetch(`${apiUrl}/api/projects`, {
+    headers: authHeaders(),
   });
-  if (!response.ok) throw new Error("Erreur lors de la récupération des projets.");
-  return response.json();
+  if (!r.ok) throw new Error("Erreur récupération projets");
+  return r.json();
 };
 
-export const deleteProject = async (projectId: string): Promise<void> => {
-  const response = await fetch(`${apiUrl}/api/projects/${projectId}`, {
+export const deleteProject = async (projectId: string) => {
+  const r = await fetch(`${apiUrl}/api/projects/${projectId}`, {
     method: "DELETE",
-    headers: { "X-Ms-Token-Aad-Access-Token": token }
+    headers: authHeaders(),
   });
-  if (!response.ok) throw new Error("Erreur lors de la suppression du projet.");
+  if (!r.ok) throw new Error("Erreur suppression projet");
 };
 
-export const uploadProjectFiles = async (projectId: string, files: File[]): Promise<any> => {
+export const uploadProjectFiles = async (
+  projectId: string,
+  files: File[]
+) => {
   const formData = new FormData();
-  files.forEach((file) => {
-    formData.append("files", file);
-  });
-  const response = await fetch(`${apiUrl}/api/projects/${projectId}/upload`, {
+  files.forEach((f) => formData.append("files", f));
+
+  const r = await fetch(`${apiUrl}/api/projects/${projectId}/upload`, {
     method: "POST",
-    headers: { "X-Ms-Token-Aad-Access-Token": token },
-    body: formData
+    headers: authHeaders(),
+    body: formData,
   });
-  if (!response.ok) throw new Error("Erreur lors de l'upload des fichiers pour le projet.");
-  return response.json();
+  if (!r.ok) throw new Error("Erreur upload fichiers projet");
+  return r.json();
 };
 
-export const updateProjectInstructions = async (projectId: string, instructions: string): Promise<void> => {
-  const response = await fetch(`${apiUrl}/api/projects/${projectId}`, {
+export const updateProjectInstructions = async (
+  projectId: string,
+  instructions: string
+) => {
+  const r = await fetch(`${apiUrl}/api/projects/${projectId}`, {
     method: "PUT",
-    headers: { 
-      "Content-Type": "application/json",
-      "X-Ms-Token-Aad-Access-Token": token
-    },
-    body: JSON.stringify({ instructions })
+    headers: authHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify({ instructions }),
   });
-  if (!response.ok) throw new Error("Erreur lors de la mise à jour des instructions.");
+  if (!r.ok) throw new Error("Erreur MAJ instructions");
 };
 
-export const getProject = async (projectId: string): Promise<any> => {
-  const response = await fetch(`${apiUrl}/api/projects/${projectId}`, {
-    headers: { "X-Ms-Token-Aad-Access-Token": token }
+export const getProject = async (projectId: string) => {
+  const r = await fetch(`${apiUrl}/api/projects/${projectId}`, {
+    headers: authHeaders(),
   });
-  if (!response.ok) throw new Error("Erreur lors de la récupération du projet.");
-  return response.json();
+  if (!r.ok) throw new Error("Erreur récupération projet");
+  return r.json();
 };

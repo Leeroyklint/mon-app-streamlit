@@ -8,3 +8,7 @@ frontend/node_modules_old/
 
 frontend/node_modules_old/
 *.tsbuildinfo
+
+# --- build React (build copié en prod seulement) ---
+backend/static/
+

@@ -1,20 +1,16 @@
+import { authHeaders } from "./auth";
 const apiUrl = import.meta.env.VITE_API_URL;
-const token = "test2";
-// Fonction modifiée pour accepter plusieurs fichiers
 export const uploadDocuments = async (files, conversationId) => {
     const formData = new FormData();
-    files.forEach((file) => {
-        formData.append("files", file);
-    });
-    if (conversationId) {
+    files.forEach((f) => formData.append("files", f));
+    if (conversationId)
         formData.append("conversationId", conversationId);
-    }
-    const response = await fetch(`${apiUrl}/api/docs/upload`, {
+    const r = await fetch(`${apiUrl}/api/docs/upload`, {
         method: "POST",
-        headers: { "X-Ms-Token-Aad-Access-Token": token },
-        body: formData
+        headers: authHeaders(), // FormData → pas de Content‑Type manuel
+        body: formData,
     });
-    if (!response.ok)
-        throw new Error("Erreur lors de l'upload des documents.");
-    return response.json();
+    if (!r.ok)
+        throw new Error("Erreur upload documents");
+    return r.json();
 };
