@@ -122,11 +122,8 @@ def group_conversations_by_date(convs):
 #  Routes — user / conversations
 # ------------------------------------------------------------------
 @router.get("/user")
-def get_user(user: dict = Depends(get_current_user)):
-    return {
-        "entra_oid": user["entra_oid"],
-        "name": user.get("name", "Utilisateur inconnu"),
-    }
+def me(user = Depends(get_current_user)):
+    return user
 
 
 @router.get("/conversations")
