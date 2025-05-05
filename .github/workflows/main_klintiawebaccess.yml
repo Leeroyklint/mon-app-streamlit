@@ -1,71 +1,99 @@
-# Docs for the Azure Web Apps Deploy action: https://github.com/Azure/webapps-deploy
-# More GitHub Actions for Azure: https://github.com/Azure/actions
-# More info on Python, GitHub Actions, and Azure App Service: https://aka.ms/python-webapps-actions
+name: Build & Deploy – FastAPI + React → Azure Web App (KlintIAWebAccess)
 
-name: Build and deploy Python app to Azure Web App - KlintIAWebAccess
-
+# ────────────────────────
 on:
   push:
-    branches:
-      - main
-  workflow_dispatch:
+    branches: [main]      # déploiement auto sur chaque push → main
+  workflow_dispatch:       # déclenchement manuel si besoin
 
+# ────────────────────────
+permissions:
+  contents: read
+
+# Variables communes
+env:
+  PYTHON_VERSION: "3.11"
+  NODE_VERSION: "20.x"
+  APP_NAME: "KlintIAWebAccess"          # nom exact de l’App Service
+  SLOT_NAME: "Production"               # laisse «Production» si pas de slot
+
+# ────────────────────────
 jobs:
   build:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read #This is required for actions/checkout
 
     steps:
-      - uses: actions/checkout@v4
+    # ───────── Cloner le dépôt
+    - uses: actions/checkout@v4
 
-      - name: Set up Python version
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
+    # ───────── FRONTEND (Vite)
+    - name: Set up Node
+      uses: actions/setup-node@v3
+      with:
+        node-version: ${{ env.NODE_VERSION }}
 
-      - name: Create and start virtual environment
-        run: |
-          python -m venv venv
-          source venv/bin/activate
-      
-      - name: Install dependencies
-        run: pip install -r requirements.txt
-        
-      # Optional: Add step to run tests here (PyTest, Django test suites, etc.)
+    - name: Install & build React app
+      working-directory: frontend
+      run: |
+        npm ci                    # install propre → package-lock.json
+        npm run build             # génère ./dist
 
-      - name: Zip artifact for deployment
-        run: zip release.zip ./* -r
+    # ───────── BACKEND (FastAPI)
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
 
-      - name: Upload artifact for deployment jobs
-        uses: actions/upload-artifact@v4
-        with:
-          name: python-app
-          path: |
-            release.zip
-            !venv/
+    - name: Create venv + install backend deps
+      run: |
+        python -m venv venv
+        source venv/bin/activate
+        pip install --upgrade pip
+        pip install -r requirements.txt
 
+    # ───────── Copier le build React dans backend/static/
+    - name: Copy React build to backend/static
+      run: |
+        mkdir -p backend/static
+        cp -r frontend/dist/* backend/static/
+
+    # ───────── Packager pour le déploiement
+    - name: Zip artifact
+      run: |
+        zip -r release.zip . \
+              -x "venv/**" \
+                 "frontend/**" \
+                 ".git/**" \
+                 ".github/**"
+
+    - name: Upload artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: python-app
+        path: release.zip
+
+  # ────────────────────────
   deploy:
     runs-on: ubuntu-latest
     needs: build
     environment:
-      name: 'Production'
-      url: ${{ steps.deploy-to-webapp.outputs.webapp-url }}
-    
+      name: production
+      url: ${{ steps.deploy.outputs.webapp-url }}
+
     steps:
-      - name: Download artifact from build job
-        uses: actions/download-artifact@v4
-        with:
-          name: python-app
+    - name: Download artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: python-app
 
-      - name: Unzip artifact for deployment
-        run: unzip release.zip
+    - name: Unzip artifact
+      run: unzip -q release.zip
 
-      
-      - name: 'Deploy to Azure Web App'
-        uses: azure/webapps-deploy@v3
-        id: deploy-to-webapp
-        with:
-          app-name: 'KlintIAWebAccess'
-          slot-name: 'Production'
-          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_93C6421AB11B489E931AB57238016C27 }}
+    - name: Deploy to Azure Web App
+      id: deploy
+      uses: azure/webapps-deploy@v3
+      with:
+        app-name: ${{ env.APP_NAME }}
+        slot-name: ${{ env.SLOT_NAME }}
+        publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_93C6421AB11B489E931AB57238016C27 }}
+        package: .
