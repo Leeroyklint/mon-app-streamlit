@@ -1,38 +1,42 @@
 """
-Décode les infos utilisateur quelle que soit la forme
-(Access‑Token *ou* Client‑Principal).
+Résout l’utilisateur courant :
+• DEV   : le front envoie « test2 »
+• PROD  : on lit d’abord Access‑Token, sinon Client‑Principal
 """
 
 import base64, json, jwt
 from fastapi import Request, HTTPException
 
-# ------------------------------------------------------------
-# helpers internes
-# ------------------------------------------------------------
+# ------------------------------------------------------------------
+# helpers
+# ------------------------------------------------------------------
 def _decode_access_token(tok: str) -> dict | None:
     try:
-        claims = jwt.decode(tok,
-                            algorithms=["RS256"],
-                            options={"verify_signature": False})
+        c = jwt.decode(tok,
+                       algorithms=["RS256"],
+                       options={"verify_signature": False})
         return {
-            "entra_oid": claims.get("entra_oid") or claims.get("oid") or claims.get("sub"),
+            "entra_oid": c.get("entra_oid") or c.get("oid") or c.get("sub"),
             "name": (
-                claims.get("name")
-                or claims.get("preferred_username")
-                or claims.get("upn")
-                or claims.get("email")
+                c.get("name")
+                or c.get("preferred_username")
+                or c.get("upn")
+                or c.get("email")
             ),
         }
     except Exception:
         return None
 
+
+# URI long utilisé par Easy Auth dans X‑MS‑CLIENT‑PRINCIPAL
+OID_CLAIM = "http://schemas.microsoft.com/identity/claims/objectidentifier"
 
 def _decode_client_principal(b64: str) -> dict | None:
     try:
-        data = json.loads(base64.b64decode(b64))
+        data = json.loads(base64.b64decode(b64 + "==="))   # padding au cas où
         claims = {c["typ"]: c["val"] for c in data["claims"]}
         return {
-            "entra_oid": claims.get("oid") or claims.get("sub"),
+            "entra_oid": claims.get("oid") or claims.get(OID_CLAIM) or claims.get("sub"),
             "name": (
                 claims.get("name")
                 or claims.get("preferred_username")
@@ -44,27 +48,26 @@ def _decode_client_principal(b64: str) -> dict | None:
         return None
 
 
-# ------------------------------------------------------------
+# ------------------------------------------------------------------
 # dépendance FastAPI
-# ------------------------------------------------------------
+# ------------------------------------------------------------------
 def get_current_user(req: Request) -> dict:
     """
-    • DEV local : front envoie “test2” → user bidon
-    • PROD      : on tente Access‑Token puis Client‑Principal
+    Retourne un dict {entra_oid, name} ou lève 401.
     """
     tok = req.headers.get("X-Ms-Token-Aad-Access-Token")
     if tok and tok != "test2":
-        user = _decode_access_token(tok)
-        if user and user["entra_oid"]:
-            return user
+        u = _decode_access_token(tok)
+        if u and u["entra_oid"]:
+            return u
 
-    cp = req.headers.get("X-MS-CLIENT-PRINCIPAL")
+    cp = req.headers.get("X-MS-CLIENT-PRINCIPAL")        # présent quand user loggué
     if cp:
-        user = _decode_client_principal(cp)
-        if user and user["entra_oid"]:
-            return user
+        u = _decode_client_principal(cp)
+        if u and u["entra_oid"]:
+            return u
 
-    if tok == "test2":  # jeton dev
+    if tok == "test2":                                    # mode dev local
         return {"entra_oid": "dev‑user", "name": "Dev User"}
 
     raise HTTPException(status_code=401, detail="Utilisateur non authentifié")
