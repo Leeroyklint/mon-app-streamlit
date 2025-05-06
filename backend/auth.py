@@ -6,6 +6,8 @@ Résout l’utilisateur courant :
 
 import base64, json, jwt
 from fastapi import Request, HTTPException
+import logging
+log = logging.getLogger("auth")
 
 # ------------------------------------------------------------------
 # helpers
@@ -58,16 +60,19 @@ def get_current_user(req: Request) -> dict:
     tok = req.headers.get("X-Ms-Token-Aad-Access-Token")
     if tok and tok != "test2":
         u = _decode_access_token(tok)
+        log.info("AccessToken user=%s", u)
         if u and u["entra_oid"]:
             return u
 
     cp = req.headers.get("X-MS-CLIENT-PRINCIPAL")        # présent quand user loggué
     if cp:
         u = _decode_client_principal(cp)
+        log.info("ClientPrincipal user=%s", u)
         if u and u["entra_oid"]:
             return u
 
-    if tok == "test2":                                    # mode dev local
-        return {"entra_oid": "dev‑user", "name": "Dev User"}
+    if tok == "test2":  
+        log.warning("DEV token utilisé")                                  # mode dev local
+        return {"entra_oid": "user-123", "name": "TestUser"}
 
     raise HTTPException(status_code=401, detail="Utilisateur non authentifié")

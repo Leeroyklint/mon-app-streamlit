@@ -7,7 +7,7 @@ Point d’entrée FastAPI – sert l’API **et** la Single‑Page‑App React
 """
 
 from pathlib import Path
-
+from backend import logging_config  
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -23,7 +23,6 @@ from backend.model import azure_llm_chat
 origins = [
     "http://localhost:5173",                      # dev local
     "https://klintiawebaccess.azurewebsites.net", # prod
-    "*"                                           # ← retire‑le si tu veux restreindre
 ]
 
 app = FastAPI()

@@ -4,20 +4,25 @@ API — Klint GPT
 • PUT /projects/{id} pour éditer les instructions
 """
 
+from __future__ import annotations
+
+import logging
+from datetime import datetime, timezone
+from typing import Optional, List
+
+import jwt
 from fastapi import (
     APIRouter,
     HTTPException,
-    Request,
     Depends,
     UploadFile,
     File,
     Form,
+    Request,
 )
-import jwt
 from pydantic import BaseModel
-from typing import Optional, List
-from datetime import datetime, timezone
 
+from backend.auth import get_current_user
 from backend.db import (
     create_conversation,
     get_conversation,
@@ -41,27 +46,17 @@ from backend.models import (
     search_documents,
 )
 
-from backend.auth import get_current_user
+# ------------------------------------------------------------------
+#  Logger
+# ------------------------------------------------------------------
+logger = logging.getLogger("klint.api")          # << nom explicite
+if not logger.handlers:                          # évite doublons sous reload
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    )
 
 router = APIRouter()
-
-# ------------------------------------------------------------------
-#  Auth helper
-# ------------------------------------------------------------------
-# def get_current_user(request: Request):
-#     """
-#     Renvoie un dict (claims du JWT) ou lève 401.
-#     Le jeton de dev « test2 » renvoie un utilisateur fictif.
-#     """
-#     tok = request.headers.get("X-Ms-Token-Aad-Access-Token")
-#     if not tok:
-#         raise HTTPException(status_code=401, detail="Utilisateur non authentifié")
-#     try:
-#         if tok == "test2":                              # jeton local dev
-#             return {"entra_oid": "user-123", "name": "TestUser"}
-#         return jwt.decode(tok, algorithms=["RS256"], options={"verify_signature": False})
-#     except Exception as e:
-#         raise HTTPException(status_code=401, detail=f"Token invalide : {e}")
 
 
 # ------------------------------------------------------------------
@@ -96,7 +91,7 @@ class ProjectUpdateRequest(BaseModel):
 # ------------------------------------------------------------------
 #  Utils
 # ------------------------------------------------------------------
-def group_conversations_by_date(convs):
+def group_conversations_by_date(convs: list[dict]) -> dict[str, list[dict]]:
     now = datetime.now(timezone.utc)
     groups = {
         "Aujourd’hui": [],
@@ -125,6 +120,7 @@ def group_conversations_by_date(convs):
 # ------------------------------------------------------------------
 @router.get("/user")
 def current_user(u: dict = Depends(get_current_user)):
+    logger.debug("GET /user -> %s", u)
     return u
 
 
@@ -134,6 +130,12 @@ def get_all_conversations(
     conversationType: Optional[str] = None,
     projectId: Optional[str] = None,
 ):
+    logger.info(
+        "Lister conversations | user=%s type=%s project=%s",
+        user["entra_oid"],
+        conversationType,
+        projectId,
+    )
     convs = list_conversations(
         user["entra_oid"], conversation_type=conversationType, project_id=projectId
     )
@@ -142,14 +144,17 @@ def get_all_conversations(
 
 @router.get("/conversations/{conv_id}/messages")
 def get_conv_messages(conv_id: str, user: dict = Depends(get_current_user)):
+    logger.debug("Messages conversation=%s user=%s", conv_id, user["entra_oid"])
     conv = get_conversation(user["entra_oid"], conv_id)
     if not conv:
+        logger.warning("Conversation %s introuvable pour %s", conv_id, user["entra_oid"])
         raise HTTPException(status_code=404, detail="Conversation non trouvée")
     return conv.get("messages", [])
 
 
 @router.delete("/conversations/{conv_id}", status_code=204)
 def delete_conv(conv_id: str, user: dict = Depends(get_current_user)):
+    logger.info("DELETE conversation=%s by %s", conv_id, user["entra_oid"])
     delete_conversation(user["entra_oid"], conv_id)
     return
 
@@ -160,12 +165,15 @@ def delete_conv(conv_id: str, user: dict = Depends(get_current_user)):
 @router.post("/chat", response_model=ChatResponse)
 def chat_endpoint(req: ChatRequest, user: dict = Depends(get_current_user)):
     entra_oid = user["entra_oid"]
+    logger.info("POST /chat by %s | cid=%s q='%s...'", entra_oid, req.conversationId, req.question[:50])
+
     selected_model = "GPT o1-mini"
 
     # ---------- récupération ou création ----------
     if req.conversationId:
         conv = get_conversation(entra_oid, req.conversationId)
         if not conv:
+            logger.error("Conversation %s introuvable (user=%s)", req.conversationId, entra_oid)
             raise HTTPException(status_code=404, detail="Conversation non trouvée")
         conv["messages"].append({"role": "user", "content": req.question})
     else:
@@ -178,6 +186,7 @@ def chat_endpoint(req: ChatRequest, user: dict = Depends(get_current_user)):
         if req.projectId:
             conv["instructions"] = req.instructions or ""
         update_conversation(conv)
+        logger.debug("Création conversation %s (type=%s)", conv["id"], conv["type"])
 
     # ---------- titre auto ----------
     if conv.get("title", "").lower().startswith("nouveau chat"):
@@ -220,6 +229,7 @@ def chat_endpoint(req: ChatRequest, user: dict = Depends(get_current_user)):
         messages = [{"role": "system", "content": sys_msg}] + messages
 
     answer = azure_llm_chat(messages, model=selected_model)
+    logger.debug("LLM answer len=%d chars", len(answer))
 
     conv["messages"].append({"role": "assistant", "content": answer})
     update_conversation(conv)
@@ -228,6 +238,7 @@ def chat_endpoint(req: ChatRequest, user: dict = Depends(get_current_user)):
 
 @router.post("/select-model")
 def select_model(sel: ModelSelection, user: dict = Depends(get_current_user)):
+    logger.info("Model sélectionné par %s : %s", user["entra_oid"], sel.modelId)
     return {"message": "Modèle reçu", "modelId": sel.modelId}
 
 
@@ -241,6 +252,7 @@ async def upload_documents(
     user: dict = Depends(get_current_user),
 ):
     entra_oid = user["entra_oid"]
+    logger.info("Upload docs (%d fichier·s) by %s", len(files), entra_oid)
     uploaded_docs = []
 
     for file in files:
@@ -261,6 +273,7 @@ async def upload_documents(
     if conversationId:
         conv = get_conversation(entra_oid, conversationId)
         if not conv:
+            logger.error("Conv %s introuvable pour upload", conversationId)
             raise HTTPException(status_code=404, detail="Conversation non trouvée")
         conv["documents"] = conv.get("documents", []) + uploaded_docs
         conv["type"] = "doc"
@@ -280,6 +293,7 @@ async def upload_documents(
     )
 
     update_conversation(conv)
+    logger.debug("Docs ajoutés à conv %s", conv["id"])
     return {"conversationId": conv["id"], "documents": uploaded_docs}
 
 
@@ -288,11 +302,13 @@ async def upload_documents(
 # ------------------------------------------------------------------
 @router.post("/projects", status_code=201)
 def create_new_project(project: ProjectRequest, user: dict = Depends(get_current_user)):
+    logger.info("Création projet '%s' par %s", project.name, user["entra_oid"])
     return create_project(user["entra_oid"], project.name, project.instructions)
 
 
 @router.get("/projects")
 def get_projects(user: dict = Depends(get_current_user)):
+    logger.debug("Liste projets pour %s", user["entra_oid"])
     return list_projects(user["entra_oid"])
 
 
@@ -300,6 +316,7 @@ def get_projects(user: dict = Depends(get_current_user)):
 def get_single_project(project_id: str, user: dict = Depends(get_current_user)):
     proj = get_project(user["entra_oid"], project_id)
     if not proj:
+        logger.warning("Projet %s introuvable user=%s", project_id, user["entra_oid"])
         raise HTTPException(status_code=404, detail="Projet non trouvé")
     return proj
 
@@ -312,14 +329,17 @@ def update_single_project(
 ):
     proj = get_project(user["entra_oid"], project_id)
     if not proj:
+        logger.warning("Projet %s introuvable (update)", project_id)
         raise HTTPException(status_code=404, detail="Projet non trouvé")
     proj["instructions"] = body.instructions or ""
     update_project(proj)
+    logger.info("MAJ instructions projet %s", project_id)
     return proj
 
 
 @router.delete("/projects/{project_id}", status_code=204)
 def delete_proj(project_id: str, user: dict = Depends(get_current_user)):
+    logger.info("Suppression projet %s par %s", project_id, user["entra_oid"])
     delete_project(user["entra_oid"], project_id)
     return
 
@@ -332,6 +352,7 @@ async def upload_project_files(
 ):
     proj = get_project(user["entra_oid"], project_id)
     if not proj:
+        logger.warning("Upload vers projet %s introuvable", project_id)
         raise HTTPException(status_code=404, detail="Projet non trouvé")
 
     proj_files = proj.get("files", [])
@@ -352,4 +373,5 @@ async def upload_project_files(
 
     proj["files"] = proj_files
     update_project(proj)
+    logger.debug("Ajout de %d fichiers au projet %s", len(files), project_id)
     return {"projectId": project_id, "files": proj_files}
