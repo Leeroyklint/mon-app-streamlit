@@ -74,9 +74,5 @@ def get_current_user(req: Request) -> dict:
     if tok == "test2":  
         log.warning("DEV token utilisé")                                  # mode dev local
         return {"entra_oid": "user-123", "name": "TestUser"}
-
-    logging.getLogger("klint.auth").debug(
-        "HEADERS tk='%s...' cp='%s...'", tok, cp
-    )
-
+    
     raise HTTPException(status_code=401, detail="Utilisateur non authentifié")
