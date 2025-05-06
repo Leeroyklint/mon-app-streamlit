@@ -34,6 +34,8 @@ jobs:
 
     - name: Install & build React app
       working-directory: frontend
+      env:
+        VITE_API_URL: "https://klintiawebaccess.azurewebsites.net"       
       run: |
         npm ci                    # install propre → package-lock.json
         npm run build             # génère ./dist

@@ -6,13 +6,9 @@ select {
   width: 120px;
   position: absolute;
   top: 1%;
-  left: 17%;
+  left: 22%;
   height: 45px;
-  background-color: #e6e6e6d1;
-  border: 5px solid #e6e6e667;
-  border-radius: 8%;
-  transition: background-color 0.3s ease, transform 0.3s ease;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  border: none;
 }
 
 option {
