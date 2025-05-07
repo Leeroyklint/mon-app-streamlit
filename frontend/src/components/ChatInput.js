@@ -18,48 +18,46 @@ const getIcon = (filename) => {
         return txtIcon;
     return wordIcon;
 };
-const ChatInput = ({ onSend, disabled = false }) => {
+const ChatInput = ({ onSend, disabled = false, variant = "bottom", }) => {
     const [message, setMessage] = useState("");
-    const [selectedFiles, setSelectedFiles] = useState([]);
+    const [selectedFiles, setSelected] = useState([]);
     const fileInputRef = useRef(null);
     /* ---------- fichiers sélectionnés ---------- */
     const handleFileChange = (e) => {
         if (e.target.files && e.target.files.length > 0) {
-            const filesArray = Array.from(e.target.files);
-            setSelectedFiles((prev) => [...prev, ...filesArray]);
+            setSelected(prev => [...prev, ...Array.from(e.target.files)]);
         }
     };
-    const handleRemoveFile = (i) => setSelectedFiles((prev) => prev.filter((_, idx) => idx !== i));
+    const removeFile = (idx) => setSelected(prev => prev.filter((_, i) => i !== idx));
     /* ---------- envoi ---------- */
     const submit = () => {
         const trimmed = message.trim();
         if (trimmed || selectedFiles.length) {
             onSend(trimmed, selectedFiles);
             setMessage("");
-            setSelectedFiles([]);
+            setSelected([]);
             fileInputRef.current && (fileInputRef.current.value = "");
         }
     };
-    const handleSubmit = (e) => {
-        e.preventDefault();
-        submit();
-    };
-    const handleKeyDown = (e) => {
+    const onSubmit = (e) => { e.preventDefault(); submit(); };
+    const onKeyDown = (e) => {
         if (e.key === "Enter" && !e.shiftKey) {
             e.preventDefault();
             submit();
         }
     };
-    return (React.createElement("form", { className: "chat-input-form", onSubmit: handleSubmit },
-        React.createElement(TextareaAutosize, { value: message, onChange: (e) => setMessage(e.target.value), onKeyDown: handleKeyDown, placeholder: "Posez une question ou joignez un fichier\u2026", className: "chat-input-input", minRows: 1, maxRows: 6, style: { overflowY: "auto", resize: "none" }, disabled: disabled }),
-        React.createElement("div", { className: "input-attachment-container" }, selectedFiles.map((file, i) => {
-            const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
+    /* ---------- classes ---------- */
+    const rootCls = variant === "bottom" ? "chat-input-form bottom" : "chat-input-form";
+    return (React.createElement("form", { className: rootCls, onSubmit: onSubmit },
+        React.createElement(TextareaAutosize, { value: message, onChange: (e) => setMessage(e.target.value), onKeyDown: onKeyDown, placeholder: "Posez une question ou joignez un fichier\u2026", className: "chat-input-input", minRows: 1, maxRows: 6, style: { overflowY: "auto", resize: "none" }, disabled: disabled }),
+        React.createElement("div", { className: "input-attachment-container" }, selectedFiles.map((f, i) => {
+            const ext = f.name.split(".").pop()?.toLowerCase() ?? "";
             return (React.createElement("div", { key: i, className: "input-attachment" },
-                React.createElement("img", { src: getIcon(file.name), alt: ext, className: "file-icon" }),
+                React.createElement("img", { src: getIcon(f.name), alt: ext, className: "file-icon" }),
                 React.createElement("div", { className: "input-attachment-info" },
-                    React.createElement("div", { className: "input-file-name" }, file.name),
+                    React.createElement("div", { className: "input-file-name" }, f.name),
                     React.createElement("div", { className: "input-file-type" }, ext)),
-                React.createElement("button", { type: "button", className: "input-remove-btn", onClick: () => handleRemoveFile(i) }, "\u2715")));
+                React.createElement("button", { type: "button", className: "input-remove-btn", onClick: () => removeFile(i) }, "\u2715")));
         })),
         React.createElement("div", { className: "chat-input-button-row" },
             React.createElement("div", { className: "chat-input-file" },

@@ -1,0 +1,36 @@
+/* —————————————————————————————————————————————————————
+   Zone couvrant tout l’écran mais *laisse passer* les clics
+   ————————————————————————————————————————————————————— */
+   .welcome-wrapper{
+    position:fixed;
+    inset:0;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    pointer-events:none;           /* ⚠️  ← clics passent à travers */
+  }
+  
+  /* bloc réellement interactif (titre + input) */
+  .welcome-content{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:40px;
+    pointer-events:auto;           /* réactive les clics */
+    transform:translateX(10px);    /* décale de 10 px vers la droite */
+  }
+  
+  /* ————————————————————————————————————————————————————— */
+  .welcome-title{
+    font-size:32px;
+    font-weight:600;
+    margin:0;
+    text-align:center;
+    color:#111;
+  }
+  
+  .welcome-input{
+    width:600px;
+    max-width:90vw;
+  }
+  
