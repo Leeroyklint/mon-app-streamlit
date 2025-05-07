@@ -1,10 +1,10 @@
 .chat-input-form{
-  position:fixed;bottom:5%;left:25%;width:50%;
+  position:fixed;bottom:5%;left:32%;width:50%;
   padding:8px;background:#fff;border:1px solid #ced4da;border-radius:25px;
   box-shadow:0 4px 8px rgba(0,0,0,.1);display:flex;flex-direction:column;gap:8px;
 }
 .chat-input-input{
-  padding:12px;border:0;border-radius:25px;background:#f8f9fa;width:98%;font-size:16px;
+  padding:12px;border:0;border-radius:25px;background:#f8f9fa;width:96%;font-size:16px;
 }
 .chat-input-input:focus{background:#e9ecef;border-color:#80bdff;outline:none;}
 .chat-input-button-row{display:flex;justify-content:space-between;align-items:center;}

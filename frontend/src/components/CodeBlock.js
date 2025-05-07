@@ -1,15 +1,11 @@
 import React, { useState } from "react";
 import "./ChatMessages.css";
-/**
- * Bloc de code (compat. React‑Markdown)
- */
-const CodeBlock = ({ inline = false, className = "", children, }) => {
-    /* ----- code inline (<code>) --------------------------------- */
-    if (inline)
+const CodeBlock = ({ className = "", children, }) => {
+    const code = String(children ?? "");
+    if (!code.includes("\n")) {
         return React.createElement("code", { className: className }, children);
-    /* ----- bloc -------------------------------------------------- */
+    }
     const language = /language-(\w+)/.exec(className ?? "")?.[1] ?? "txt";
-    const code = String(children).replace(/\n$/, "");
     const [copied, setCopied] = useState(false);
     const copy = async () => {
         try {
@@ -22,7 +18,7 @@ const CodeBlock = ({ inline = false, className = "", children, }) => {
     return (React.createElement("div", { className: "code-block" },
         React.createElement("div", { className: "code-block-header" },
             React.createElement("span", { className: "code-lang" }, language),
-            React.createElement("button", { className: "copy-btn", onClick: copy }, copied ? "Copié !" : "Copier")),
+            React.createElement("button", { className: "copy-btn", onClick: copy }, copied ? "Copié !" : "Copier")),
         React.createElement("pre", null,
             React.createElement("code", { className: className }, code))));
 };

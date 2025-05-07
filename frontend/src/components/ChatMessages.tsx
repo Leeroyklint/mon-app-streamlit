@@ -3,21 +3,55 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import "./ChatMessages.css";
 import { Message, Attachment } from "../interfaces/interfaces";
-import CodeBlock, { CodeProps } from "./CodeBlock";
+import CodeBlock from "./CodeBlock";
 
-import pdfIcon from "../assets/pdf_icone.png";
-import wordIcon from "../assets/word_icone.png";
+import pdfIcon   from "../assets/pdf_icone.png";
+import wordIcon  from "../assets/word_icone.png";
 import excelIcon from "../assets/csv_icone.png";
-import txtIcon from "../assets/txt_icone.png";
+import txtIcon   from "../assets/txt_icone.png";
+
+/* ------------------------------------------------------------------ */
+/* Typage très souple : rien n’est obligatoire ----------------------- */
+interface MarkdownCodeProps extends React.HTMLAttributes<HTMLElement> {
+  inline?: boolean;
+  className?: string;
+  children?: React.ReactNode;          // ⬅️ optionnel
+}
+/* ------------------------------------------------------------------ */
 
 const getIcon = (filename: string) => {
   const ext = filename.split(".").pop()?.toLowerCase() ?? "";
-  if (ext === "pdf") return { src: pdfIcon, alt: "PDF" };
-  if (ext === "doc" || ext === "docx") return { src: wordIcon, alt: "Word" };
-  if (["xls", "xlsx", "csv"].includes(ext)) return { src: excelIcon, alt: "Excel" };
-  if (ext === "txt") return { src: txtIcon, alt: "TXT" };
+  if (ext === "pdf")               return { src: pdfIcon,   alt: "PDF"   };
+  if (ext === "doc" || ext === "docx")
+                                   return { src: wordIcon,  alt: "Word"  };
+  if (["xls", "xlsx", "csv"].includes(ext))
+                                   return { src: excelIcon, alt: "Excel" };
+  if (ext === "txt")               return { src: txtIcon,   alt: "TXT"   };
   return { src: wordIcon, alt: "Fichier" };
 };
+
+/* ------------------------------------------------------------------ */
+/* Composant <code> transmis à ReactMarkdown                          */
+const MarkdownCode: React.FC<MarkdownCodeProps> = ({
+  inline,
+  className,
+  children,
+  ...props
+}) => {
+  if (inline) {
+    return (
+      <code className={className} {...props}>
+        {children}
+      </code>
+    );
+  }
+  return (
+    <CodeBlock className={className}>
+      {children}
+    </CodeBlock>
+  );
+};
+/* ------------------------------------------------------------------ */
 
 interface Props { messages: Message[]; }
 
@@ -28,16 +62,17 @@ const ChatMessages: React.FC<Props> = ({ messages }) => {
   return (
     <div className="chat-messages">
       {messages.map((m) => {
-        const isUser = m.sender === "user";
+        const isUser    = m.sender === "user";
         const bubbleCls = `message-item ${isUser ? "message-user" : "message-bot"}`;
 
         return (
           <div key={m.id} className={bubbleCls}>
             <div className="message-bubble">
-              {/* pièces‑jointes */}
-              {m.attachments?.length && (
+
+              {/* === pièces-jointes ===================================== */}
+              {m.attachments?.length ? (
                 <div className="message-attachments">
-                  {m.attachments.map((att: Attachment, i: number) => {
+                  {m.attachments.map((att: Attachment, i) => {
                     const { src, alt } = getIcon(att.name);
                     const ext = att.name.split(".").pop()?.toLowerCase() ?? "";
                     return (
@@ -51,17 +86,17 @@ const ChatMessages: React.FC<Props> = ({ messages }) => {
                     );
                   })}
                 </div>
-              )}
+              ) : null}
 
-              {/* texte message */}
+              {/* === texte / Markdown =================================== */}
               {m.text &&
                 (isUser ? (
-                  /* conserve les sauts de ligne */
                   <pre className="message-text">{m.text}</pre>
                 ) : (
                   <ReactMarkdown
                     remarkPlugins={[remarkGfm]}
-                    components={{ code: (p) => <CodeBlock {...(p as CodeProps)} /> }}
+                    /*  ⬇️ on caste pour coller au type attendu --------- */
+                    components={{ code: MarkdownCode as React.ComponentType<any> }}
                   >
                     {m.text}
                   </ReactMarkdown>

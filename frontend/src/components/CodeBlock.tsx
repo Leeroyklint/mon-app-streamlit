@@ -1,27 +1,21 @@
 import React, { useState } from "react";
 import "./ChatMessages.css";
 
-/* signature attendue par React‑Markdown ------------------------- */
-export interface CodeProps {
-  inline?: boolean;
+export interface CodeBlockProps {
   className?: string;
-  children: React.ReactNode;
+  children?: React.ReactNode;         // ⬅️ children devient optionnel
 }
 
-/**
- * Bloc de code (compat. React‑Markdown)
- */
-const CodeBlock: React.FC<CodeProps> = ({
-  inline = false,
+const CodeBlock: React.FC<CodeBlockProps> = ({
   className = "",
   children,
 }) => {
-  /* ----- code inline (<code>) --------------------------------- */
-  if (inline) return <code className={className}>{children}</code>;
+  const code = String(children ?? "");
+  if (!code.includes("\n")) {
+    return <code className={className}>{children}</code>;
+  }
 
-  /* ----- bloc -------------------------------------------------- */
   const language = /language-(\w+)/.exec(className ?? "")?.[1] ?? "txt";
-  const code = String(children).replace(/\n$/, "");
   const [copied, setCopied] = useState(false);
 
   const copy = async () => {
@@ -37,7 +31,7 @@ const CodeBlock: React.FC<CodeProps> = ({
       <div className="code-block-header">
         <span className="code-lang">{language}</span>
         <button className="copy-btn" onClick={copy}>
-          {copied ? "Copié !" : "Copier"}
+          {copied ? "Copié !" : "Copier"}
         </button>
       </div>
       <pre>

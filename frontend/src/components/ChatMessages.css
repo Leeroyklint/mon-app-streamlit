@@ -1,6 +1,6 @@
 /* conteneur ----------------------------------------------------- */
 .chat-messages{
-  position:fixed;top:10%;bottom:30%;left:27%;width:45%;
+  position:fixed;top:10%;bottom:30%;left:27%;width:64%;
   overflow-y:auto;overscroll-behavior:contain;padding:8px;
 }
 
