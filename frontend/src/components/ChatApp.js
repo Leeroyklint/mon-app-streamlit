@@ -128,7 +128,7 @@ const ChatApp = () => {
     return (React.createElement("div", { style: { position: "relative" } },
         ingesting && (React.createElement("div", { className: "loading-overlay" },
             React.createElement("div", { className: "loader" }),
-            React.createElement("p", null, "Indexation du document\u2026"))),
+            React.createElement("p", null, "Chargement du document\u2026"))),
         isLoading && !ingesting && (React.createElement("div", { className: "loading-overlay" },
             React.createElement("div", { className: "loader" }),
             React.createElement("p", null, "GPT r\u00E9dige une r\u00E9ponse\u2026"))),

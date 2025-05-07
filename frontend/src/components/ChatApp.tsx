@@ -140,7 +140,7 @@ const ChatApp: React.FC = () => {
       {ingesting && (
         <div className="loading-overlay">
           <div className="loader" />
-          <p>Indexation du document…</p>
+          <p>Chargement du document…</p>
         </div>
       )}
       {isLoading && !ingesting && (

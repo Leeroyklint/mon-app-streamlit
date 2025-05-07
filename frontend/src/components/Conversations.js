@@ -30,7 +30,7 @@ const Conversations = () => {
     };
     useEffect(() => {
         fetchConvs();
-        const id = setInterval(fetchConvs, 5_000);
+        const id = setInterval(fetchConvs, 3_000);
         /* + rafraîchissement instantané quand ChatApp crée un nouveau chat */
         const onNew = () => fetchConvs();
         window.addEventListener("conversationCreated", onNew);
