@@ -1,12 +1,18 @@
 import { authHeaders } from "./auth";
+/* --------- petite classe pour remonter le status HTTP --------- */
+export class ApiError extends Error {
+    status;
+    constructor(status, message) {
+        super(message);
+        this.status = status;
+    }
+}
 const apiUrl = import.meta.env.VITE_API_URL;
 /* ---------- listes & suppression ---------- */
 export const getConversations = async () => {
-    const r = await fetch(`${apiUrl}/api/conversations`, {
-        headers: authHeaders(),
-    });
+    const r = await fetch(`${apiUrl}/api/conversations`, { headers: authHeaders() });
     if (!r.ok)
-        throw new Error("Erreur chargement convs");
+        throw new ApiError(r.status, "Erreur chargement convs");
     return r.json();
 };
 export const deleteConversation = async (id) => {
@@ -15,17 +21,17 @@ export const deleteConversation = async (id) => {
         headers: authHeaders(),
     });
     if (!r.ok)
-        throw new Error("Erreur suppression conv");
+        throw new ApiError(r.status, "Erreur suppression conv");
 };
 /* ----- conversations d’un projet ----- */
 export const getConversationsForProject = async (projectId) => {
-    const r = await fetch(`${apiUrl}/api/conversations?projectId=${projectId}`, { headers: authHeaders() });
+    const r = await fetch(`${apiUrl}/api/conversations?projectId=${projectId}`, {
+        headers: authHeaders(),
+    });
     if (!r.ok)
-        throw new Error("Erreur convs projet");
+        throw new ApiError(r.status, "Erreur convs projet");
     const groups = (await r.json());
-    return Object.values(groups)
-        .flat()
-        .filter((c) => c.project_id);
+    return Object.values(groups).flat().filter((c) => c.project_id);
 };
 /* ---------- chat ---------- */
 export const askQuestion = async (question, conversationId, conversationType, instructions) => {
@@ -41,8 +47,10 @@ export const askQuestion = async (question, conversationId, conversationType, in
         headers: authHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify(payload),
     });
-    if (!r.ok)
-        throw new Error("Erreur LLM");
+    if (!r.ok) {
+        const txt = await r.text();
+        throw new ApiError(r.status, txt || "Erreur LLM");
+    }
     return (await r.json()).answer;
 };
 export const createConversation = async (initialMsg, conversationType = "chat", projectId, instructions) => {
@@ -58,8 +66,10 @@ export const createConversation = async (initialMsg, conversationType = "chat", 
         headers: authHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify(payload),
     });
-    if (!r.ok)
-        throw new Error("Erreur création conv");
+    if (!r.ok) {
+        const txt = await r.text();
+        throw new ApiError(r.status, txt || "Erreur création conv");
+    }
     return r.json();
 };
 export const getMessages = async (convId) => {
@@ -67,6 +77,6 @@ export const getMessages = async (convId) => {
         headers: authHeaders(),
     });
     if (!r.ok)
-        throw new Error("Erreur messages");
+        throw new ApiError(r.status, "Erreur messages");
     return r.json();
 };

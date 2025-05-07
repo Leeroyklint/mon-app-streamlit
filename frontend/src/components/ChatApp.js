@@ -3,19 +3,22 @@ import React, { useState, useRef, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import ChatInput from "./ChatInput";
 import ChatMessages from "./ChatMessages";
-import { askQuestion, getMessages, createConversation, } from "../services/conversationService";
+import { askQuestion, getMessages, createConversation, ApiError, } from "../services/conversationService";
 import { uploadDocuments } from "../services/documentService";
 import "./ChatApp.css";
 const ChatApp = () => {
-    /* ---------- routing ---------- */
     const { conversationId: routeConvId } = useParams();
     const navigate = useNavigate();
-    /* ---------- state ---------- */
     const [conversationId, setConversationId] = useState(routeConvId);
     const [messages, setMessages] = useState([]);
     const [isLoading, setIsLoading] = useState(false);
     const [ingesting, setIngesting] = useState(false);
     const idCounterRef = useRef(0);
+    const resetToNewChat = () => {
+        setConversationId(undefined);
+        setMessages([]);
+        navigate("/");
+    };
     /* ---------- chargement historique ---------- */
     useEffect(() => {
         if (routeConvId && !ingesting)
@@ -36,7 +39,10 @@ const ChatApp = () => {
             })));
         }
         catch (e) {
-            console.error("Erreur chargement messages :", e);
+            if (e instanceof ApiError && e.status === 404)
+                resetToNewChat();
+            else
+                console.error("Erreur chargement messages :", e);
         }
     };
     const addMessage = (text, sender, attachments) => {
@@ -77,15 +83,16 @@ const ChatApp = () => {
         if (userMessage || previewAtch) {
             addMessage(userMessage || "", "user", previewAtch);
         }
-        /* ----- création de conversation vide (sans upload) ----- */
+        /* ----- création de conversation (chat simple) ----- */
         if (!convId && files.length === 0) {
             try {
                 const newConv = await createConversation(userMessage, convType);
                 convId = newConv.conversationId;
                 setConversationId(convId);
                 addMessage(newConv.answer, "bot");
-                if (!routeConvId)
-                    navigate(`/conversation/${convId}`);
+                /* ⬇️ notifie la sidebar pour ajout instantané -------- */
+                window.dispatchEvent(new CustomEvent("conversationCreated"));
+                navigate(`/conversation/${convId}`);
             }
             catch (e) {
                 console.error("Échec création conv :", e);
@@ -103,20 +110,20 @@ const ChatApp = () => {
                     addMessage(answer, "bot");
                 }
                 catch (e) {
-                    console.error("Erreur envoi message :", e);
-                    addMessage("Erreur lors de l'envoi du message.", "bot");
+                    if (e instanceof ApiError && e.status === 404) {
+                        alert("Cette conversation n’existe plus, un nouveau chat va être créé.");
+                        resetToNewChat();
+                    }
+                    else {
+                        console.error("Erreur envoi message :", e);
+                        addMessage("Erreur lors de l'envoi du message.", "bot");
+                    }
                 }
             }
             setIsLoading(false);
             setIngesting(false);
         };
-        /* ----- délai si upload ----- */
-        if (files.length > 0) {
-            setTimeout(sendQuestion, 5000);
-        }
-        else {
-            await sendQuestion();
-        }
+        files.length > 0 ? setTimeout(sendQuestion, 5000) : await sendQuestion();
     };
     /* ---------- rendu ---------- */
     return (React.createElement("div", { style: { position: "relative" } },

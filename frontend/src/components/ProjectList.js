@@ -2,13 +2,14 @@ import React, { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { getProjects, deleteProject } from "../services/projectService";
 import { getConversationsForProject, deleteConversation, } from "../services/conversationService";
+import ConfirmModal from "./ConfirmModal";
 const ProjectList = ({ onCreateProject }) => {
     const [projects, setProjects] = useState([]);
     const [expanded, setExpanded] = useState({});
     const [convs, setConvs] = useState({});
+    const [toDelete, setToDelete] = useState(null);
     const navigate = useNavigate();
     const location = useLocation();
-    /* id conv / projet actuellement ouvert ------------------------ */
     const currentConvId = location.pathname.startsWith("/conversation/")
         ? location.pathname.split("/")[2]
         : null;
@@ -33,13 +34,12 @@ const ProjectList = ({ onCreateProject }) => {
             const { projectId, conversation } = e.detail || {};
             if (!projectId || !conversation)
                 return;
-            setExpanded((p) => ({ ...p, [projectId]: true }));
-            setConvs((p) => {
+            setExpanded(p => ({ ...p, [projectId]: true }));
+            setConvs(p => {
                 const list = p[projectId] || [];
-                /* évite d’empiler deux fois le même chat ----------------- */ // ★
-                if (list.find((c) => c.id === conversation.id))
-                    return p; // ★
-                return { ...p, [projectId]: [conversation, ...list] }; // ★
+                if (list.find(c => c.id === conversation.id))
+                    return p;
+                return { ...p, [projectId]: [conversation, ...list] };
             });
         };
         window.addEventListener("conversationCreated", onConv);
@@ -48,15 +48,13 @@ const ProjectList = ({ onCreateProject }) => {
             window.removeEventListener("conversationCreated", onConv);
         };
     }, []);
-    /* ---------- outils ---------- */
+    /* ---------- helpers ---------- */
     const ensureConvsLoaded = async (projId) => {
         if (convs[projId])
-            return; // déjà présent -> rien à faire
+            return; // déjà chargées
         try {
-            /* on attend ici – dans une vraie fonction async            */
-            const list = await getConversationsForProject(projId);
-            /* puis on met l’état à jour sans mot‑clé await             */
-            setConvs(prev => ({ ...prev, [projId]: list }));
+            const list = await getConversationsForProject(projId); // ⬅️ fetch
+            setConvs(prev => ({ ...prev, [projId]: list })); // ⬅️ set sans await
         }
         catch {
             console.error("Err convs projet");
@@ -67,30 +65,60 @@ const ProjectList = ({ onCreateProject }) => {
         await ensureConvsLoaded(id);
         navigate(`/projects/${id}`);
     };
-    const delProj = async (id) => {
-        await deleteProject(id);
-        loadProjects();
+    /* ---------- suppression (confirm + action) ---------- */
+    const doDelete = async () => {
+        if (!toDelete)
+            return;
+        try {
+            if (toDelete.kind === "project") {
+                await deleteProject(toDelete.id);
+                loadProjects();
+                if (toDelete.id === currentProjId) {
+                    navigate("/");
+                    window.location.reload();
+                }
+            }
+            else {
+                await deleteConversation(toDelete.id);
+                setConvs(p => ({
+                    ...p,
+                    [toDelete.projectId]: p[toDelete.projectId].filter(c => c.id !== toDelete.id),
+                }));
+                if (toDelete.id === currentConvId) {
+                    navigate("/");
+                    window.location.reload();
+                }
+            }
+        }
+        catch {
+            alert("Erreur suppression");
+        }
+        setToDelete(null);
     };
-    const delConv = async (convId, projId) => {
-        await deleteConversation(convId);
-        setConvs(p => ({ ...p, [projId]: p[projId].filter(c => c.id !== convId) }));
-    };
-    /* ---------- affichage ---------- */
+    /* ---------- rendu ---------- */
     if (projects.length === 0)
         return (React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 6, cursor: "pointer", padding: "6px 4px" }, onClick: onCreateProject },
             React.createElement("span", { style: { fontSize: 18 } }, "\uD83D\uDCC2"),
             " Nouveau projet"));
-    return (React.createElement("ul", { style: { listStyle: "none", padding: 0, margin: 0 } }, projects.map(p => (React.createElement("li", { key: p.id },
-        React.createElement("div", { className: `sidebar-project-row ${currentProjId === p.id ? "active" : ""}`, onClick: () => openProject(p.id) },
-            React.createElement("span", { style: { display: "flex", alignItems: "center", gap: 6 } },
-                React.createElement("span", { style: { fontSize: 18 } }, "\uD83D\uDCC2"),
-                " ",
-                p.name),
-            React.createElement("button", { className: "delete-btn", onClick: e => { e.stopPropagation(); delProj(p.id); } }, "\u2013")),
-        expanded[p.id] && (React.createElement("ul", { style: { listStyle: "none", paddingLeft: 24, marginBottom: 6 } },
-            (convs[p.id] || []).map(c => (React.createElement("li", { key: c.id, className: `sidebar-list-item sidebar-sub-item ${c.id === currentConvId ? "active" : ""}`, onClick: () => navigate(`/conversation/${c.id}`) },
-                React.createElement("span", null, c.title?.slice(0, 20) || "Sans titre"),
-                React.createElement("button", { className: "delete-btn", onClick: e => { e.stopPropagation(); delConv(c.id, p.id); } }, "\u2013")))),
-            convs[p.id] && convs[p.id].length === 0 && (React.createElement("li", { style: { fontStyle: "italic" } }, "Aucune conversation")))))))));
+    return (React.createElement(React.Fragment, null,
+        React.createElement("ul", { style: { listStyle: "none", padding: 0, margin: 0 } }, projects.map(p => (React.createElement("li", { key: p.id },
+            React.createElement("div", { className: `sidebar-project-row ${currentProjId === p.id ? "active" : ""}`, onClick: () => openProject(p.id) },
+                React.createElement("span", { style: { display: "flex", alignItems: "center", gap: 6 } },
+                    React.createElement("span", { style: { fontSize: 18 } }, "\uD83D\uDCC2"),
+                    " ",
+                    p.name),
+                React.createElement("button", { className: "delete-btn", onClick: e => {
+                        e.stopPropagation();
+                        setToDelete({ kind: "project", id: p.id });
+                    } }, "\u2013")),
+            expanded[p.id] && (React.createElement("ul", { style: { listStyle: "none", paddingLeft: 24, marginBottom: 6 } },
+                (convs[p.id] || []).map(c => (React.createElement("li", { key: c.id, className: `sidebar-list-item sidebar-sub-item ${c.id === currentConvId ? "active" : ""}`, onClick: () => navigate(`/conversation/${c.id}`) },
+                    React.createElement("span", null, c.title?.slice(0, 20) || "Sans titre"),
+                    React.createElement("button", { className: "delete-btn", onClick: e => {
+                            e.stopPropagation();
+                            setToDelete({ kind: "conv", id: c.id, projectId: p.id });
+                        } }, "\u2013")))),
+                convs[p.id] && convs[p.id].length === 0 && (React.createElement("li", { style: { fontStyle: "italic" } }, "Aucune conversation")))))))),
+        React.createElement(ConfirmModal, { open: !!toDelete, title: "Supprimer ?", message: "Cette action est d\u00E9finitive.", onCancel: () => setToDelete(null), onConfirm: doDelete })));
 };
 export default ProjectList;

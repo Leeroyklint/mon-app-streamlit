@@ -1,0 +1,35 @@
+/* === fond gris + blur ============================================= */
+.confirm-back{
+    position:fixed;inset:0;
+    background:rgba(0,0,0,.55);
+    backdrop-filter:blur(2px);
+    display:flex;justify-content:center;align-items:center;
+    z-index:10000;              /* au-dessus de tout le reste */
+  }
+  
+  /* === boîte ======================================================== */
+  .confirm-box{
+    width:430px;max-width:95vw;
+    background:#fff;border-radius:12px;padding:26px;
+    display:flex;flex-direction:column;gap:20px;
+    box-shadow:0 8px 24px rgba(0,0,0,.25);
+    position:relative;
+  }
+  
+  .confirm-msg{line-height:1.45;font-size:14px;}
+  
+  /* === actions ====================================================== */
+  .confirm-actions{
+    display:flex;justify-content:flex-end;gap:14px;
+  }
+  
+  .confirm-cancel,
+  .confirm-delete{
+    border:none;border-radius:6px;padding:9px 24px;font-size:14px;
+    cursor:pointer;
+  }
+  
+  .confirm-cancel{background:#f1f1f1;}
+  .confirm-delete{background:#d83b42;color:#fff;}
+  .confirm-delete:hover{background:#c0353b;}
+  
