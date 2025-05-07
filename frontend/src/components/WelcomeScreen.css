@@ -17,7 +17,7 @@
     align-items:center;
     gap:40px;
     pointer-events:auto;           /* réactive les clics */
-    transform:translateX(10px);    /* décale de 10 px vers la droite */
+    transform:translateX(70px);    /* décale de 10 px vers la droite */
   }
   
   /* ————————————————————————————————————————————————————— */
