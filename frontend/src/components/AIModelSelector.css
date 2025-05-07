@@ -1,22 +1,51 @@
-select {
-  appearance: none;
-  padding: 10px;
-  font-size: 16px;
-  cursor: pointer;
-  width: 120px;
-  position: absolute;
-  top: 1%;
-  left: 22%;
-  height: 45px;
-  border: none;
+/* ------- conteneur principal ----------------------------------- */
+.model-wrapper{
+  position:fixed;
+  top:8px;
+  left:320px;          /* +15 px par rapport aux 280 initiaux */
+  z-index:1200;
+  font-family:inherit;
 }
 
-option {
-  padding: 10px;
-  font-size: 16px;
+/* ------- bouton affiché en permanence -------------------------- */
+.model-button{
+  padding:6px 14px;
+  font-size:14px;
+  cursor:pointer;
+  display:flex;align-items:center;gap:6px;
 }
+.model-button:hover{background:#e6e8ea;}
+.arrow{font-size:10px;line-height:10px;}
 
-select:focus {
-  outline: none;
-  border-color: #007bff;
+/* ------- menu déroulant ---------------------------------------- */
+.model-menu{
+  position:absolute;top:40px;left:0;
+  width:260px;
+  background:#fff;
+  border:none;                /* ➜ plus de cadre */
+  border-radius:8px;
+  box-shadow:0 4px 16px rgba(0,0,0,.12);
+  padding:8px 0;
+  color:#000;
 }
+.menu-title{
+  font-size:13px;font-weight:600;
+  padding:4px 16px 8px;
+}
+.menu-row{
+  display:flex;justify-content:space-between;align-items:flex-start;
+  gap:8px;
+  padding:8px 16px;cursor:pointer;
+}
+.menu-row:hover{background:#f6f6f6;}
+.menu-row.active{background:#e8f0fe;}
+.row-name{font-weight:600;}
+.row-sub{font-size:12px;color:#555;margin-top:2px;}
+.check{font-size:14px;line-height:14px;color:#0a7;}
+
+/* .menu-footer{
+  padding:10px 16px 6px;
+  font-size:13px;color:#0066c0;
+  cursor:pointer;
+}
+.menu-footer:hover{text-decoration:underline;} */

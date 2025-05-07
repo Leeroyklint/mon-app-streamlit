@@ -9,11 +9,13 @@ import AIModelSelector from './components/AIModelSelector';
 import { getCurrentUser } from './services/userService';
 import './App.css';
 const models = [
-    { id: "model1", name: "GPT o1-mini" },
-    { id: "model2", name: "GPT o1" },
-    { id: "model3", name: "GPT 4o-mini" },
-    { id: "model4", name: "GPT 4o" },
-    { id: "model5", name: "GPT o3-mini" },
+    { id: "model1", name: "GPT 4o", subtitle: "Tâches quotidiennes, rapide, usage général" },
+    { id: "model2", name: "GPT 4o-mini", subtitle: "Ultra léger, rapide, idéal pour tâches simples" },
+    { id: "model3", name: "GPT o1", subtitle: "Polyvalent, meilleur raisonnement que 4o" },
+    { id: "model4", name: "GPT o1-mini", subtitle: "Léger mais plus malin, mieux que 4o Mini" },
+    { id: "model5", name: "GPT 4.1", subtitle: "Avancé et rapide, excellent raisonnement, haut niveau." },
+    { id: "model6", name: "GPT 4.1-mini", subtitle: "Très rapide et capable, proche du grand modèle" },
+    { id: "model7", name: "GPT o3-mini", subtitle: "Modèle avancé, bonnes performances" },
 ];
 function App() {
     const [userName, setUserName] = useState("Chargement...");

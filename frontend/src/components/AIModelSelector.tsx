@@ -1,43 +1,75 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useRef, useState } from "react";
+import { selectModel } from "../services/modelService";
 import "./AIModelSelector.css";
-import { selectModel } from '../services/modelService';
 
-interface AIModel {
+export interface LlmModel {
   id: string;
   name: string;
+  subtitle: string;
 }
 
-interface AIModelSelectorProps {
-  models: AIModel[];
+interface Props {
+  models: LlmModel[];
 }
 
-const AIModelSelector: React.FC<AIModelSelectorProps> = ({ models }) => {
-  const defaultModelId = models.find(model => model.id === "model1")?.id || '';
-  const [selectedModel, setSelectedModel] = useState<string>(defaultModelId);
+const AIModelSelector: React.FC<Props> = ({ models }) => {
+  const defaultId   = models[0]?.id ?? "";
+  const [open, setOpen]           = useState(false);
+  const [selected, setSelected]   = useState(defaultId);
+  const ref = useRef<HTMLDivElement>(null);
 
+  /* --- click hors composant -> referme --------------------------- */
   useEffect(() => {
-    if (defaultModelId) {
-      selectModel(defaultModelId).catch(error => console.error(error));
-    }
-  }, [defaultModelId]);
+    const onClick = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    window.addEventListener("mousedown", onClick);
+    return () => window.removeEventListener("mousedown", onClick);
+  }, []);
 
-  const handleSelectChange = async (event: React.ChangeEvent<HTMLSelectElement>) => {
-    const modelId = event.target.value;
-    setSelectedModel(modelId);
-    try {
-      await selectModel(modelId);
-    } catch (error) {
-      console.error("Erreur :", error);
-    }
+  /* --- mise à jour backend -------------------------------------- */
+  useEffect(() => {
+    if (selected) selectModel(selected).catch(console.error);
+  }, [selected]);
+
+  /* --- helpers --------------------------------------------------- */
+  const current = models.find(m => m.id === selected);
+
+  const choose = (id: string) => {
+    setSelected(id);
+    setOpen(false);
   };
 
+  /* --- render ---------------------------------------------------- */
   return (
-    <select value={selectedModel} onChange={handleSelectChange}>
-      <option value="" disabled>Sélectionnez un modèle</option>
-      {models.map((model) => (
-        <option key={model.id} value={model.id}>{model.name}</option>
-      ))}
-    </select>
+    <div className="model-wrapper" ref={ref}>
+      {/* ▸ bouton entête */}
+      <button className="model-button" onClick={() => setOpen(p => !p)}>
+        {current?.name || "Sélectionner"} <span className="arrow">{open ? "▲" : "▼"}</span>
+      </button>
+
+      {open && (
+        <div className="model-menu">
+          <div className="menu-title">Modèle</div>
+
+          {models.map(m => (
+            <div
+              key={m.id}
+              className={`menu-row ${m.id === selected ? "active" : ""}`}
+              onClick={() => choose(m.id)}
+            >
+              <div>
+                <div className="row-name">{m.name}</div>
+                <div className="row-sub">{m.subtitle}</div>
+              </div>
+              {m.id === selected && <span className="check">✔</span>}
+            </div>
+          ))}
+
+          {/* <div className="menu-footer">Davantage de modèles ▸</div> */}
+        </div>
+      )}
+    </div>
   );
 };
 

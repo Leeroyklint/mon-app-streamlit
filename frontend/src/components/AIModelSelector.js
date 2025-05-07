@@ -1,26 +1,43 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useRef, useState } from "react";
+import { selectModel } from "../services/modelService";
 import "./AIModelSelector.css";
-import { selectModel } from '../services/modelService';
 const AIModelSelector = ({ models }) => {
-    const defaultModelId = models.find(model => model.id === "model1")?.id || '';
-    const [selectedModel, setSelectedModel] = useState(defaultModelId);
+    const defaultId = models[0]?.id ?? "";
+    const [open, setOpen] = useState(false);
+    const [selected, setSelected] = useState(defaultId);
+    const ref = useRef(null);
+    /* --- click hors composant -> referme --------------------------- */
     useEffect(() => {
-        if (defaultModelId) {
-            selectModel(defaultModelId).catch(error => console.error(error));
-        }
-    }, [defaultModelId]);
-    const handleSelectChange = async (event) => {
-        const modelId = event.target.value;
-        setSelectedModel(modelId);
-        try {
-            await selectModel(modelId);
-        }
-        catch (error) {
-            console.error("Erreur :", error);
-        }
+        const onClick = (e) => {
+            if (ref.current && !ref.current.contains(e.target))
+                setOpen(false);
+        };
+        window.addEventListener("mousedown", onClick);
+        return () => window.removeEventListener("mousedown", onClick);
+    }, []);
+    /* --- mise à jour backend -------------------------------------- */
+    useEffect(() => {
+        if (selected)
+            selectModel(selected).catch(console.error);
+    }, [selected]);
+    /* --- helpers --------------------------------------------------- */
+    const current = models.find(m => m.id === selected);
+    const choose = (id) => {
+        setSelected(id);
+        setOpen(false);
     };
-    return (React.createElement("select", { value: selectedModel, onChange: handleSelectChange },
-        React.createElement("option", { value: "", disabled: true }, "S\u00E9lectionnez un mod\u00E8le"),
-        models.map((model) => (React.createElement("option", { key: model.id, value: model.id }, model.name)))));
+    /* --- render ---------------------------------------------------- */
+    return (React.createElement("div", { className: "model-wrapper", ref: ref },
+        React.createElement("button", { className: "model-button", onClick: () => setOpen(p => !p) },
+            current?.name || "Sélectionner",
+            " ",
+            React.createElement("span", { className: "arrow" }, open ? "▲" : "▼")),
+        open && (React.createElement("div", { className: "model-menu" },
+            React.createElement("div", { className: "menu-title" }, "Mod\u00E8le"),
+            models.map(m => (React.createElement("div", { key: m.id, className: `menu-row ${m.id === selected ? "active" : ""}`, onClick: () => choose(m.id) },
+                React.createElement("div", null,
+                    React.createElement("div", { className: "row-name" }, m.name),
+                    React.createElement("div", { className: "row-sub" }, m.subtitle)),
+                m.id === selected && React.createElement("span", { className: "check" }, "\u2714"))))))));
 };
 export default AIModelSelector;

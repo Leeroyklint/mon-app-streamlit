@@ -167,7 +167,7 @@ def chat_endpoint(req: ChatRequest, user: dict = Depends(get_current_user)):
     entra_oid = user["entra_oid"]
     logger.info("POST /chat by %s | cid=%s q='%s...'", entra_oid, req.conversationId, req.question[:50])
 
-    selected_model = "GPT o1-mini"
+    selected_model = "GPT 4o"
 
     # ---------- récupération ou création ----------
     if req.conversationId:
