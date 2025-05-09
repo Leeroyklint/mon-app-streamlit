@@ -1,12 +1,12 @@
 """
-API — Klint GPT
+API — Klint GPT
 • plus de message automatique à l’upload
 • PUT /projects/{id} pour éditer les instructions
 """
 
 from __future__ import annotations
 
-import logging
+import logging, tiktoken
 from datetime import datetime, timezone
 from typing import Optional, List
 
@@ -57,6 +57,89 @@ if not logger.handlers:                          # évite doublons sous reload
     )
 
 router = APIRouter()
+
+# ------------------------------------------------------------------
+#  Résumé auto pour éviter le 429 / dépassement tokens
+# ------------------------------------------------------------------
+ENC        = tiktoken.get_encoding("cl100k_base")
+TOK_LIMIT  = 3_000          # on résume quand le prompt dépasse ce seuil
+KEEP_LAST  = 8              # on garde les 8 derniers messages “bruts”
+SUM_MODEL  = "GPT o1-mini"  # petit modèle peu coûteux
+SUM_SYSTEM = (
+    "Tu es un assistant qui résume factuellement une conversation pour conserver "
+    "uniquement les informations importantes, sans rien inventer."
+)
+
+def _ntokens(txt: str) -> int:
+    """Nombre de tokens (open-ai cl100k_base)."""
+    return len(ENC.encode(txt))
+
+def _ensure_summary(conv: dict) -> None:
+    """
+    Si la conversation entière dépasse TOK_LIMIT tokens :
+      • on résume tout ce qui précède KEEP_LAST messages
+      • on stocke le résumé dans conv['summary']
+      • on mémorise jusqu'où on a résumé via conv['summary_index']
+    Cette fonction met à jour la conversation en base quand elle crée un résumé.
+    """
+    msgs = conv.get("messages", [])
+    done = conv.get("summary_index", 0)
+    total_tok = _ntokens(conv.get("summary", "")) + sum(_ntokens(m["content"]) for m in msgs)
+    if total_tok <= TOK_LIMIT:
+        return
+
+    # On ne résume que si on a des anciens messages non encore résumés
+    cut = max(done, len(msgs) - KEEP_LAST)
+    older = msgs[done:cut]
+    if not older:
+        return
+
+    to_summarize = "\n\n".join(f"{m['role']}: {m['content']}" for m in older)
+    summary = azure_llm_chat(
+        [
+            {"role": "system", "content": SUM_SYSTEM},
+            {"role": "user", "content": to_summarize},
+        ],
+        model=SUM_MODEL,
+    )
+
+    # concatène proprement
+    conv["summary"] = (conv.get("summary", "") + "\n\n" + summary).strip()
+    conv["summary_index"] = cut
+    update_conversation(conv)   # on persiste aussitôt
+
+
+def _build_prompt(
+    conv: dict,
+    question: str,
+    base_sys_msg: str,
+) -> list[dict]:
+    """
+    Construit le prompt final :
+      – instructions projet              (system)
+      – contexte documentaire / résumé   (system)
+      – summary                          (system)
+      – derniers messages (KEEP_LAST)    (user/assistant)
+      – nouvelle question                (user)
+    """
+    _ensure_summary(conv)               # ⇢ ajoute éventuellement conv['summary']
+
+    prompt: list[dict] = []
+    if base_sys_msg:
+        prompt.append({"role": "system", "content": base_sys_msg})
+
+    if conv.get("summary"):
+        prompt.append(
+            {
+                "role": "system",
+                "content": "Résumé de la conversation jusqu'ici :\n"
+                + conv["summary"],
+            }
+        )
+
+    prompt += conv.get("messages", [])[-KEEP_LAST:]
+    prompt.append({"role": "user", "content": question})
+    return prompt
 
 
 # ------------------------------------------------------------------
@@ -165,7 +248,12 @@ def delete_conv(conv_id: str, user: dict = Depends(get_current_user)):
 @router.post("/chat", response_model=ChatResponse)
 def chat_endpoint(req: ChatRequest, user: dict = Depends(get_current_user)):
     entra_oid = user["entra_oid"]
-    logger.info("POST /chat by %s | cid=%s q='%s...'", entra_oid, req.conversationId, req.question[:50])
+    logger.info(
+        "POST /chat by %s | cid=%s q='%s...'",
+        entra_oid,
+        req.conversationId,
+        req.question[:50],
+    )
 
     selected_model = "GPT 4o"
 
@@ -173,7 +261,9 @@ def chat_endpoint(req: ChatRequest, user: dict = Depends(get_current_user)):
     if req.conversationId:
         conv = get_conversation(entra_oid, req.conversationId)
         if not conv:
-            logger.error("Conversation %s introuvable (user=%s)", req.conversationId, entra_oid)
+            logger.error(
+                "Conversation %s introuvable (user=%s)", req.conversationId, entra_oid
+            )
             raise HTTPException(status_code=404, detail="Conversation non trouvée")
         conv["messages"].append({"role": "user", "content": req.question})
     else:
@@ -218,16 +308,16 @@ def chat_endpoint(req: ChatRequest, user: dict = Depends(get_current_user)):
             vs = build_vectorstore_from_texts(chunks)
             context = "\n\n".join(search_documents(vs, req.question, k=4))
 
-    sys_msg = ""
+    base_sys_msg = ""
     if instr:
-        sys_msg += f"Project instructions:\n{instr}\n\n"
+        base_sys_msg += f"Project instructions:\n{instr}\n\n"
     if context:
-        sys_msg += f"Context:\n{context}"
+        base_sys_msg += f"Context:\n{context}"
 
-    messages = conv.get("messages", [])
-    if sys_msg:
-        messages = [{"role": "system", "content": sys_msg}] + messages
+    # ---------- prompt final avec résumé ----------
+    messages = _build_prompt(conv, req.question, base_sys_msg)
 
+    # ---------- appel LLM ----------
     answer = azure_llm_chat(messages, model=selected_model)
     logger.debug("LLM answer len=%d chars", len(answer))
 
