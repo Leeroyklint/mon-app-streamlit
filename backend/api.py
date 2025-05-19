@@ -1,16 +1,15 @@
 """
-API — Klint GPT
-• plus de message automatique à l’upload
-• PUT /projects/{id} pour éditer les instructions
+API — Klint GPT v2
+• ingestion multi-documents : résumé + RAG
+• même endpoint /chat pour tous les types de conversation
+• routes projets / conversations inchangées
 """
 
 from __future__ import annotations
-
-import logging, tiktoken
+import logging, tiktoken, jwt
 from datetime import datetime, timezone
 from typing import Optional, List
 
-import jwt
 from fastapi import (
     APIRouter,
     HTTPException,
@@ -23,7 +22,7 @@ from fastapi import (
 from pydantic import BaseModel
 
 from backend.auth import get_current_user
-from backend.db import (
+from backend.db   import (
     create_conversation,
     get_conversation,
     update_conversation,
@@ -35,7 +34,7 @@ from backend.db import (
     get_project,
     update_project,
 )
-from backend.model import azure_llm_chat
+from backend.model  import azure_llm_chat
 from backend.models import (
     parse_pdf,
     parse_docx,
@@ -44,107 +43,78 @@ from backend.models import (
     get_text_chunks,
     build_vectorstore_from_texts,
     search_documents,
+    summarize_text,                # ⬅️ résumé automatique à l’upload
 )
 
-# ------------------------------------------------------------------
-#  Logger
-# ------------------------------------------------------------------
-logger = logging.getLogger("klint.api")          # << nom explicite
-if not logger.handlers:                          # évite doublons sous reload
+# ─────────────────────────────────────────────────────────────────── Logger
+logger = logging.getLogger("klint.api")
+if not logger.handlers:           # évite doublons sous hot-reload
     logging.basicConfig(
         level=logging.INFO,
-        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+        format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
     )
 
 router = APIRouter()
 
-# ------------------------------------------------------------------
-#  Résumé auto pour éviter le 429 / dépassement tokens
-# ------------------------------------------------------------------
+# ────────────────────────────────────────────────────────── Résumé thread long
 ENC        = tiktoken.get_encoding("cl100k_base")
-TOK_LIMIT  = 3_000          # on résume quand le prompt dépasse ce seuil
-KEEP_LAST  = 8              # on garde les 8 derniers messages “bruts”
-SUM_MODEL  = "GPT o1-mini"  # petit modèle peu coûteux
+TOK_LIMIT  = 3_000        # on résume quand on dépasse ce seuil
+KEEP_LAST  = 8            # on garde les 8 derniers messages « bruts »
+SUM_MODEL  = "GPT o1-mini"
 SUM_SYSTEM = (
     "Tu es un assistant qui résume factuellement une conversation pour conserver "
     "uniquement les informations importantes, sans rien inventer."
 )
 
 def _ntokens(txt: str) -> int:
-    """Nombre de tokens (open-ai cl100k_base)."""
     return len(ENC.encode(txt))
 
 def _ensure_summary(conv: dict) -> None:
     """
-    Si la conversation entière dépasse TOK_LIMIT tokens :
-      • on résume tout ce qui précède KEEP_LAST messages
-      • on stocke le résumé dans conv['summary']
-      • on mémorise jusqu'où on a résumé via conv['summary_index']
-    Cette fonction met à jour la conversation en base quand elle crée un résumé.
+    Résume tout ce qui précède KEEP_LAST messages si l’historique dépasse TOK_LIMIT.
+    Stocke la synthèse dans conv['summary'] + index jusqu’où on a résumé.
     """
     msgs = conv.get("messages", [])
     done = conv.get("summary_index", 0)
-    total_tok = _ntokens(conv.get("summary", "")) + sum(_ntokens(m["content"]) for m in msgs)
-    if total_tok <= TOK_LIMIT:
+    total = _ntokens(conv.get("summary", "")) + sum(_ntokens(m["content"]) for m in msgs)
+    if total <= TOK_LIMIT:
         return
 
-    # On ne résume que si on a des anciens messages non encore résumés
-    cut = max(done, len(msgs) - KEEP_LAST)
+    cut   = max(done, len(msgs) - KEEP_LAST)
     older = msgs[done:cut]
     if not older:
         return
 
-    to_summarize = "\n\n".join(f"{m['role']}: {m['content']}" for m in older)
+    to_sum = "\n\n".join(f"{m['role']}: {m['content']}" for m in older)
     summary = azure_llm_chat(
         [
             {"role": "system", "content": SUM_SYSTEM},
-            {"role": "user", "content": to_summarize},
+            {"role": "user",   "content": to_sum},
         ],
         model=SUM_MODEL,
     )
-
-    # concatène proprement
-    conv["summary"] = (conv.get("summary", "") + "\n\n" + summary).strip()
+    conv["summary"]       = (conv.get("summary","") + "\n\n" + summary).strip()
     conv["summary_index"] = cut
-    update_conversation(conv)   # on persiste aussitôt
+    update_conversation(conv)
 
-
-def _build_prompt(
-    conv: dict,
-    question: str,
-    base_sys_msg: str,
-) -> list[dict]:
-    """
-    Construit le prompt final :
-      – instructions projet              (system)
-      – contexte documentaire / résumé   (system)
-      – summary                          (system)
-      – derniers messages (KEEP_LAST)    (user/assistant)
-      – nouvelle question                (user)
-    """
-    _ensure_summary(conv)               # ⇢ ajoute éventuellement conv['summary']
+# ───────────────────────────────────────────────────────────── Prompt builder
+def _build_prompt(conv: dict, question: str, base_sys: str) -> list[dict]:
+    _ensure_summary(conv)
 
     prompt: list[dict] = []
-    if base_sys_msg:
-        prompt.append({"role": "system", "content": base_sys_msg})
+    if base_sys:
+        prompt.append({"role": "system", "content": base_sys})
 
     if conv.get("summary"):
         prompt.append(
-            {
-                "role": "system",
-                "content": "Résumé de la conversation jusqu'ici :\n"
-                + conv["summary"],
-            }
+            {"role": "system", "content": "Résumé de la conversation :\n" + conv["summary"]}
         )
 
     prompt += conv.get("messages", [])[-KEEP_LAST:]
     prompt.append({"role": "user", "content": question})
     return prompt
 
-
-# ------------------------------------------------------------------
-#  Schémas
-# ------------------------------------------------------------------
+# ────────────────────────────────────────────────────────────  Schémas pydantic
 class ChatRequest(BaseModel):
     question: str
     conversationId: Optional[str] = None
@@ -152,60 +122,37 @@ class ChatRequest(BaseModel):
     projectId: Optional[str] = None
     instructions: Optional[str] = ""
 
-
 class ChatResponse(BaseModel):
     answer: str
     conversationId: str
 
-
 class ModelSelection(BaseModel):
     modelId: str
-
 
 class ProjectRequest(BaseModel):
     name: str
     instructions: Optional[str] = ""
 
-
 class ProjectUpdateRequest(BaseModel):
     instructions: Optional[str] = ""
 
-
-# ------------------------------------------------------------------
-#  Utils
-# ------------------------------------------------------------------
+# ─────────────────────────────────────────────────────────────── Utils
 def group_conversations_by_date(convs: list[dict]) -> dict[str, list[dict]]:
     now = datetime.now(timezone.utc)
-    groups = {
-        "Aujourd’hui": [],
-        "7 jours précédents": [],
-        "30 jours précédents": [],
-        "Plus anciennes": [],
-    }
+    groups = {"Aujourd’hui": [], "7 jours précédents": [], "30 jours précédents": [], "Plus anciennes": []}
     for c in convs:
-        dt = datetime.fromisoformat(c["updated_at"].replace("Z", "")).replace(
-            tzinfo=timezone.utc
-        )
-        d = (now - dt).days
-        if d == 0:
-            groups["Aujourd’hui"].append(c)
-        elif d < 7:
-            groups["7 jours précédents"].append(c)
-        elif d < 30:
-            groups["30 jours précédents"].append(c)
-        else:
-            groups["Plus anciennes"].append(c)
+        dt = datetime.fromisoformat(c["updated_at"].replace("Z","")).replace(tzinfo=timezone.utc)
+        d  = (now - dt).days
+        if d == 0:        groups["Aujourd’hui"].append(c)
+        elif d < 7:       groups["7 jours précédents"].append(c)
+        elif d < 30:      groups["30 jours précédents"].append(c)
+        else:             groups["Plus anciennes"].append(c)
     return groups
 
-
-# ------------------------------------------------------------------
-#  Routes — user / conversations
-# ------------------------------------------------------------------
+# ───────────────────────────────────────────────────────── Routes ✦ user / convs
 @router.get("/user")
 def current_user(u: dict = Depends(get_current_user)):
-    logger.debug("GET /user -> %s", u)
     return u
-
 
 @router.get("/conversations")
 def get_all_conversations(
@@ -213,62 +160,36 @@ def get_all_conversations(
     conversationType: Optional[str] = None,
     projectId: Optional[str] = None,
 ):
-    logger.info(
-        "Lister conversations | user=%s type=%s project=%s",
-        user["entra_oid"],
-        conversationType,
-        projectId,
-    )
-    convs = list_conversations(
-        user["entra_oid"], conversation_type=conversationType, project_id=projectId
-    )
+    convs = list_conversations(user["entra_oid"], conversationType, projectId)
     return group_conversations_by_date(convs)
-
 
 @router.get("/conversations/{conv_id}/messages")
 def get_conv_messages(conv_id: str, user: dict = Depends(get_current_user)):
-    logger.debug("Messages conversation=%s user=%s", conv_id, user["entra_oid"])
     conv = get_conversation(user["entra_oid"], conv_id)
     if not conv:
-        logger.warning("Conversation %s introuvable pour %s", conv_id, user["entra_oid"])
-        raise HTTPException(status_code=404, detail="Conversation non trouvée")
+        raise HTTPException(404, "Conversation non trouvée")
     return conv.get("messages", [])
-
 
 @router.delete("/conversations/{conv_id}", status_code=204)
 def delete_conv(conv_id: str, user: dict = Depends(get_current_user)):
-    logger.info("DELETE conversation=%s by %s", conv_id, user["entra_oid"])
     delete_conversation(user["entra_oid"], conv_id)
     return
 
-
-# ------------------------------------------------------------------
-#  Chat endpoint
-# ------------------------------------------------------------------
+# ─────────────────────────────────────────────────────────────── Chat endpoint
 @router.post("/chat", response_model=ChatResponse)
 def chat_endpoint(req: ChatRequest, user: dict = Depends(get_current_user)):
-    entra_oid = user["entra_oid"]
-    logger.info(
-        "POST /chat by %s | cid=%s q='%s...'",
-        entra_oid,
-        req.conversationId,
-        req.question[:50],
-    )
+    uid = user["entra_oid"]
+    logger.info("POST /chat by %s | cid=%s q='%s…'", uid, req.conversationId, req.question[:60])
 
-    selected_model = "GPT 4o"
-
-    # ---------- récupération ou création ----------
+    # ——— récupération ou création ————————————————————————————
     if req.conversationId:
-        conv = get_conversation(entra_oid, req.conversationId)
+        conv = get_conversation(uid, req.conversationId)
         if not conv:
-            logger.error(
-                "Conversation %s introuvable (user=%s)", req.conversationId, entra_oid
-            )
-            raise HTTPException(status_code=404, detail="Conversation non trouvée")
+            raise HTTPException(404, "Conversation non trouvée")
         conv["messages"].append({"role": "user", "content": req.question})
     else:
         conv = create_conversation(
-            entra_oid,
+            uid,
             req.question,
             conversation_type=req.conversationType,
             project_id=req.projectId,
@@ -276,99 +197,92 @@ def chat_endpoint(req: ChatRequest, user: dict = Depends(get_current_user)):
         if req.projectId:
             conv["instructions"] = req.instructions or ""
         update_conversation(conv)
-        logger.debug("Création conversation %s (type=%s)", conv["id"], conv["type"])
 
-    # ---------- titre auto ----------
-    if conv.get("title", "").lower().startswith("nouveau chat"):
+    # ——— titre auto ————————————————————————————————
+    if conv.get("title","").lower().startswith("nouveau chat"):
         conv["title"] = (req.question or "Chat").strip()[:30] or "Chat"
 
-    conv_type = conv.get("type") or req.conversationType or "chat"
+    # ——— contexte : instructions + docs + RAG ——————————————
+    instr      = conv.get("instructions","")
+    all_docs   = conv.get("documents", [])[:]               # docs attachés au chat
 
-    # ---------- contexte ----------
-    context = ""
-    instr = conv.get("instructions", "")
-    proj_files: list = []
-    if conv_type == "project" or conv.get("project_id"):
-        proj = get_project(entra_oid, conv.get("project_id"))
+    # *Projets* ⇒ ajoute fichiers + instructions projet
+    if conv.get("project_id"):
+        proj = get_project(uid, conv["project_id"])
         if proj:
-            proj_files = proj.get("files", [])
+            all_docs += proj.get("files", [])
             if not instr:
-                instr = proj.get("instructions", "")
+                instr = proj.get("instructions","")
 
-    if conv_type == "doc":
-        docs = conv.get("documents", [])
-        if docs:
-            chunks = get_text_chunks("\n".join(d["content"] for d in docs))
-            vs = build_vectorstore_from_texts(chunks)
-            context = "\n\n".join(search_documents(vs, req.question, k=4))
-    elif conv_type == "project":
-        all_files = conv.get("files", []) + proj_files
-        if all_files:
-            chunks = get_text_chunks("\n".join(f["content"] for f in all_files))
-            vs = build_vectorstore_from_texts(chunks)
-            context = "\n\n".join(search_documents(vs, req.question, k=4))
+    # · aperçu global (résumé) de chaque doc
+    doc_summaries = "\n\n".join(
+        f"### {d['name']}\n{d.get('summary','')}" for d in all_docs if d.get("summary")
+    )
 
-    base_sys_msg = ""
-    if instr:
-        base_sys_msg += f"Project instructions:\n{instr}\n\n"
-    if context:
-        base_sys_msg += f"Context:\n{context}"
+    # · RAG ciblé : passages les plus proches de la question
+    rag_context = ""
+    if all_docs and req.question.strip():
+        chunks = get_text_chunks("\n".join(d["content"] for d in all_docs))
+        vs = build_vectorstore_from_texts(chunks)
+        rag_context = "\n\n".join(search_documents(vs, req.question, k=4))
 
-    # ---------- prompt final avec résumé ----------
-    messages = _build_prompt(conv, req.question, base_sys_msg)
+    base_sys = ""
+    if instr:         base_sys += f"Project instructions:\n{instr}\n\n"
+    if doc_summaries: base_sys += f"Document overviews:\n{doc_summaries}\n\n"
+    if rag_context:   base_sys += f"Context passages:\n{rag_context}"
 
-    # ---------- appel LLM ----------
-    answer = azure_llm_chat(messages, model=selected_model)
+    # ——— prompt final + appel LLM ————————————————————————
+    prompt = _build_prompt(conv, req.question, base_sys)
+    answer = azure_llm_chat(prompt, model="GPT 4o")
     logger.debug("LLM answer len=%d chars", len(answer))
 
     conv["messages"].append({"role": "assistant", "content": answer})
     update_conversation(conv)
     return {"answer": answer, "conversationId": conv["id"]}
 
-
+# ──────────────────────────────────────────────────────────── Sélection modèle
 @router.post("/select-model")
 def select_model(sel: ModelSelection, user: dict = Depends(get_current_user)):
     logger.info("Model sélectionné par %s : %s", user["entra_oid"], sel.modelId)
     return {"message": "Modèle reçu", "modelId": sel.modelId}
 
-
-# ------------------------------------------------------------------
-#  Upload de documents
-# ------------------------------------------------------------------
+# ─────────────────────────────────────────────────────────── Upload documents
 @router.post("/docs/upload")
 async def upload_documents(
     files: List[UploadFile] = File(...),
     conversationId: Optional[str] = Form(None),
     user: dict = Depends(get_current_user),
 ):
-    entra_oid = user["entra_oid"]
-    logger.info("Upload docs (%d fichier·s) by %s", len(files), entra_oid)
+    uid = user["entra_oid"]
+    logger.info("Upload docs (%d fichier·s) by %s", len(files), uid)
     uploaded_docs = []
 
     for file in files:
         data = await file.read()
-        name = file.filename.lower()
-        if name.endswith(".pdf"):
+        name = file.filename
+        low  = name.lower()
+        if low.endswith(".pdf"):
             text = parse_pdf(data)
-        elif name.endswith(".docx"):
+        elif low.endswith(".docx"):
             text = parse_docx(data)
-        elif name.endswith(".txt"):
+        elif low.endswith(".txt"):
             text = parse_txt(data)
-        elif name.endswith(".csv"):
+        elif low.endswith(".csv"):
             text = parse_excel(data)
         else:
             text = ""
-        uploaded_docs.append({"name": file.filename, "content": text})
+
+        summary = summarize_text(text)      # ⬅️ génère l’aperçu
+        uploaded_docs.append({"name": name, "content": text, "summary": summary})
 
     if conversationId:
-        conv = get_conversation(entra_oid, conversationId)
+        conv = get_conversation(uid, conversationId)
         if not conv:
-            logger.error("Conv %s introuvable pour upload", conversationId)
-            raise HTTPException(status_code=404, detail="Conversation non trouvée")
+            raise HTTPException(404, "Conversation non trouvée")
         conv["documents"] = conv.get("documents", []) + uploaded_docs
         conv["type"] = "doc"
     else:
-        conv = create_conversation(entra_oid, "", conversation_type="doc")
+        conv = create_conversation(uid, "", conversation_type="doc")
         conv["documents"] = uploaded_docs
         conv["messages"] = []
 
@@ -381,35 +295,26 @@ async def upload_documents(
             ],
         }
     )
-
     update_conversation(conv)
     logger.debug("Docs ajoutés à conv %s", conv["id"])
     return {"conversationId": conv["id"], "documents": uploaded_docs}
 
-
-# ------------------------------------------------------------------
-#  Projets
-# ------------------------------------------------------------------
+# ─────────────────────────────────────────────────────────────────── Projets
 @router.post("/projects", status_code=201)
 def create_new_project(project: ProjectRequest, user: dict = Depends(get_current_user)):
     logger.info("Création projet '%s' par %s", project.name, user["entra_oid"])
     return create_project(user["entra_oid"], project.name, project.instructions)
 
-
 @router.get("/projects")
 def get_projects(user: dict = Depends(get_current_user)):
-    logger.debug("Liste projets pour %s", user["entra_oid"])
     return list_projects(user["entra_oid"])
-
 
 @router.get("/projects/{project_id}")
 def get_single_project(project_id: str, user: dict = Depends(get_current_user)):
     proj = get_project(user["entra_oid"], project_id)
     if not proj:
-        logger.warning("Projet %s introuvable user=%s", project_id, user["entra_oid"])
-        raise HTTPException(status_code=404, detail="Projet non trouvé")
+        raise HTTPException(404, "Projet non trouvé")
     return proj
-
 
 @router.put("/projects/{project_id}")
 def update_single_project(
@@ -419,20 +324,16 @@ def update_single_project(
 ):
     proj = get_project(user["entra_oid"], project_id)
     if not proj:
-        logger.warning("Projet %s introuvable (update)", project_id)
-        raise HTTPException(status_code=404, detail="Projet non trouvé")
+        raise HTTPException(404, "Projet non trouvé")
     proj["instructions"] = body.instructions or ""
     update_project(proj)
     logger.info("MAJ instructions projet %s", project_id)
     return proj
 
-
 @router.delete("/projects/{project_id}", status_code=204)
 def delete_proj(project_id: str, user: dict = Depends(get_current_user)):
-    logger.info("Suppression projet %s par %s", project_id, user["entra_oid"])
     delete_project(user["entra_oid"], project_id)
     return
-
 
 @router.post("/projects/{project_id}/upload")
 async def upload_project_files(
@@ -442,24 +343,25 @@ async def upload_project_files(
 ):
     proj = get_project(user["entra_oid"], project_id)
     if not proj:
-        logger.warning("Upload vers projet %s introuvable", project_id)
-        raise HTTPException(status_code=404, detail="Projet non trouvé")
+        raise HTTPException(404, "Projet non trouvé")
 
     proj_files = proj.get("files", [])
     for f in files:
         data = await f.read()
-        name = f.filename.lower()
-        if name.endswith(".pdf"):
+        name = f.filename
+        low  = name.lower()
+        if low.endswith(".pdf"):
             text = parse_pdf(data)
-        elif name.endswith(".docx"):
+        elif low.endswith(".docx"):
             text = parse_docx(data)
-        elif name.endswith(".txt"):
+        elif low.endswith(".txt"):
             text = parse_txt(data)
-        elif name.endswith(".csv"):
+        elif low.endswith(".csv"):
             text = parse_excel(data)
         else:
             text = ""
-        proj_files.append({"name": f.filename, "content": text})
+        summary = summarize_text(text)
+        proj_files.append({"name": name, "content": text, "summary": summary})
 
     proj["files"] = proj_files
     update_project(proj)
