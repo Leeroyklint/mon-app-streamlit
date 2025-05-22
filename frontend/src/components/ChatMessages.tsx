@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from "react";
+import React,{useEffect,useRef} from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import "./ChatMessages.css";
@@ -10,128 +10,96 @@ import wordIcon  from "../assets/word_icone.png";
 import excelIcon from "../assets/csv_icone.png";
 import txtIcon   from "../assets/txt_icone.png";
 
-interface MarkdownCodeProps extends React.HTMLAttributes<HTMLElement> {
-  inline?: boolean;
-  className?: string;
-  children?: React.ReactNode;
-}
-
-const getIcon = (filename: string) => {
-  const ext = filename.split(".").pop()?.toLowerCase() ?? "";
-  if (ext === "pdf")               return { src: pdfIcon,   alt: "PDF"   };
-  if (ext === "doc" || ext === "docx")
-                                   return { src: wordIcon,  alt: "Word"  };
-  if (["xls", "xlsx", "csv"].includes(ext))
-                                   return { src: excelIcon, alt: "Excel" };
-  if (ext === "txt")               return { src: txtIcon,   alt: "TXT"   };
-  return { src: wordIcon, alt: "Fichier" };
+const IMG_EXT=["jpg","jpeg","png","gif","webp","bmp","svg"];
+const isImg=(e:string)=>IMG_EXT.includes(e);
+const icon=(e:string)=>{
+  if(e==="pdf")return pdfIcon;
+  if(e==="doc"||e==="docx")return wordIcon;
+  if(["xls","xlsx","csv"].includes(e))return excelIcon;
+  if(e==="txt")return txtIcon;
+  return wordIcon;
 };
 
-/* ------- composant <code> passé à ReactMarkdown ----------------- */
-const MarkdownCode: React.FC<MarkdownCodeProps> = ({
-  inline,
-  className,
-  children,
-  ...props
-}) => {
-  if (inline) {
-    return (
-      <code className={className} {...props}>
-        {children}
-      </code>
-    );
-  }
-  return <CodeBlock className={className}>{children}</CodeBlock>;
-};
+const MarkdownCode:React.FC<any>=({inline,className,children,...p})=>
+  inline
+    ? <code className={className} {...p}>{children}</code>
+    : <CodeBlock className={className}>{children}</CodeBlock>;
 
-interface Props {
-  messages:      Message[];
-  streaming:     boolean;
-  waitingForDoc: boolean;
-  nbDocs:        number;
+interface Props{
+  messages:Message[]; streaming:boolean;
+  waitingForDoc:boolean; nbDocs:number;
 }
 
-const ChatMessages: React.FC<Props> = ({
-  messages,
-  streaming,
-  waitingForDoc,
-  nbDocs,
-}) => {
-  const endRef = useRef<HTMLDivElement>(null);
-  useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); },
-            [messages, waitingForDoc, streaming]);
+const ChatMessages:React.FC<Props>=({
+  messages,streaming,waitingForDoc,nbDocs
+})=>{
+  const endRef=useRef<HTMLDivElement>(null);
+  useEffect(()=>{endRef.current?.scrollIntoView({behavior:"smooth"});},
+             [messages,waitingForDoc,streaming]);
 
-  /* “Réflexion…” tant que le dernier message n’est pas du bot */
-  const last       = messages[messages.length - 1];
-  const noBotYet   = streaming && (!last || last.sender !== "bot");
+  const last=messages[messages.length-1];
+  const noBot=streaming&&(!last||last.sender!=="bot");
 
-  return (
+  return(
     <div className="chat-messages">
-      {messages.map((m, idx) => {
-        const isUser    = m.sender === "user";
-        const bubbleCls = `message-item ${isUser ? "message-user" : "message-bot"}`;
-        const isLastBot = !isUser && idx === messages.length - 1;
-
-        return (
-          <div key={m.id} className={bubbleCls}>
+      {messages.map((m,idx)=>{
+        const isUser=m.sender==="user";
+        const bubble=`message-item ${isUser?"message-user":"message-bot"}`;
+        const isLastBot=!isUser&&idx===messages.length-1;
+        return(
+          <div key={m.id} className={bubble}>
             <div className="message-bubble">
 
-              {/* === pièces-jointes ===================================== */}
-              {m.attachments?.length ? (
-                <div className="message-attachments">
-                  {m.attachments.map((att: Attachment, i) => {
-                    const { src, alt } = getIcon(att.name);
-                    const ext = att.name.split(".").pop()?.toLowerCase() ?? "";
-                    return (
-                      <div key={i} className="attachment">
-                        <img src={src} alt={alt} className="attachment-icon" />
-                        <div className="attachment-info">
-                          <div className="attachment-name">{att.name}</div>
-                          <div className="attachment-type">{ext}</div>
+              {/* ------- pièces jointes ------- */}
+              {m.attachments?.length
+                ? <div className="message-attachments">
+                    {m.attachments.map((att,i)=>{
+                      const ext=(att.name.split(".").pop()||"").toLowerCase();
+                      const show=isImg(ext)&&att.url;
+                      const src =show?att.url:icon(ext);
+                      return(
+                        <div key={i} className="attachment">
+                          <img
+                            src={src}
+                            alt={att.name}
+                            className={show?"attachment-image":"attachment-icon"}
+                            onError={e=>{(e.target as HTMLImageElement).src=icon(ext);}}
+                          />
+                          <div className="attachment-info">
+                            <div className="attachment-name">
+                              {att.name.length>28?att.name.slice(0,25)+"…":att.name}
+                            </div>
+                            <div className="attachment-type">{ext}</div>
+                          </div>
                         </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : null}
+                      );
+                    })}
+                  </div>
+                : null}
 
-              {/* === texte / Markdown =================================== */}
-              {m.text &&
-                (isUser ? (
-                  <pre className="message-text">{m.text}</pre>
-                ) : (
-                  <ReactMarkdown
+              {/* ------- texte / markdown ------- */}
+              {m.text && (isUser
+                ? <pre className="message-text">{m.text}</pre>
+                : <ReactMarkdown
                     remarkPlugins={[remarkGfm]}
-                    components={{ code: MarkdownCode as React.ComponentType<any> }}
-                  >
-                    {m.text}
-                  </ReactMarkdown>
-                ))}
+                    components={{code:MarkdownCode}}
+                  >{m.text}</ReactMarkdown>)}
 
-              {/* === spinner bot si stream pas encore reçu --------------- */}
-              {isLastBot && streaming && !m.text && (
-                <span className="bot-spinner" />
-              )}
+              {isLastBot&&streaming&&!m.text&&<span className="bot-spinner"/>}
             </div>
           </div>
         );
       })}
 
-      {/* ---- placeholder “Réflexion…” -------------------------------- */}
-      {noBotYet && !waitingForDoc && (
-        <div className="thinking-placeholder">Réflexion…</div>
-      )}
-
-      {/* ---- placeholder “Chargement du/des document(s)… ” ----------- */}
-      {waitingForDoc && (
+      {noBot&&!waitingForDoc&&<div className="thinking-placeholder">Réflexion…</div>}
+      {waitingForDoc&&(
         <div className="thinking-placeholder">
-          {nbDocs > 1 ? "Chargement des documents…" : "Chargement du document…"}
+          {nbDocs>1?"Chargement des documents…":"Chargement du document…"}
         </div>
       )}
 
-      <div ref={endRef} />
+      <div ref={endRef}/>
     </div>
   );
 };
-
 export default ChatMessages;

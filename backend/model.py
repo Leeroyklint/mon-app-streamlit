@@ -5,15 +5,18 @@ streaming + sync.
 
 from __future__ import annotations
 
-import os, time, random, json, threading
+import os, time, random, json, threading, base64, logging
 from collections import defaultdict, deque
-from typing import Dict, Deque, Iterable, List, Tuple
+from typing import Dict, Deque, Iterable, List, Tuple, Generator   # ← +Generator
 
 import requests
 from dotenv import load_dotenv
 
 # ───────────────────────────────  .env
 load_dotenv()
+
+# ─────── petit logger (optionnel) ───────
+logger = logging.getLogger(__name__)
 
 # ╔══════════════════════════════  REGISTRY  ══════════════════════════════╗
 #  Pour chaque famille : liste (api_key_env, endpoint_env) + quotas.
@@ -163,14 +166,31 @@ def _sleep(resp, attempt):
     wait = float(hdr) if hdr else BASE_BACKOFF * (BASE_BACKOFF ** attempt)
     time.sleep(wait + random.random())
 
+# ───────────────────────── helper vision ────────────────────────────────
+def _requires_vision(msgs: List[dict]) -> bool:
+    """
+    True si au moins un message contient un fragment {'type':'image_url', …}.
+    """
+    for m in msgs:
+        c = m.get("content")
+        if isinstance(c, list):                    # format vision
+            if any(part.get("type") == "image_url" for part in c):
+                return True
+    return False
+
 # ─── SYNC  (remplace entièrement azure_llm_chat)
-def azure_llm_chat(messages: List[dict], model: str = "GPT 4o") -> Tuple[str, dict]:
+def azure_llm_chat(messages: List[dict],
+                   model: str = "GPT 4o") -> Tuple[str, dict]:
     """
     Retourne (content, headers) où headers = {
-        "x-llm-model":       "GPT 4o",
-        "x-llm-deployment":  "gpt-4o-0125-preview", ...
+        "x-llm-model":      "famille choisie",
+        "x-llm-deployment": "nom exact du déploiement"
     }
     """
+    # ── Bascule auto Vision → GPT 4o
+    if _requires_vision(messages) and not model.startswith("GPT 4o"):
+        model = "GPT 4o"
+
     cfg = RAW_MODELS[model]
     if cfg.get("merge_system_into_user"):
         messages = _merge_system(messages)
@@ -190,22 +210,19 @@ def azure_llm_chat(messages: List[dict], model: str = "GPT 4o") -> Tuple[str, di
                 r = requests.post(
                     ep,
                     headers={"api-key": api_key, "Content-Type": "application/json"},
-                    json=payload,
-                    timeout=60,
+                    json=payload, timeout=60,
                 )
                 r.raise_for_status()
 
-                data = r.json()
-                model_used = data.get("model") or payload["model"]
-                headers = {
+                data        = r.json()
+                deployment  = data.get("model") or payload["model"]
+                headers_out = {
                     "x-llm-model":      model,
-                    "x-llm-deployment": model_used,
+                    "x-llm-deployment": deployment,
                 }
-
                 logger.info("LLM %s via %s (%s tok in/out)",
-                            model, model_used,
-                            data.get("usage", {}))
-                return data["choices"][0]["message"]["content"], headers
+                            model, deployment, data.get("usage", {}))
+                return data["choices"][0]["message"]["content"], headers_out
 
             except requests.HTTPError as exc:
                 if r.status_code in (429, 503):
@@ -223,8 +240,12 @@ def azure_llm_chat(messages: List[dict], model: str = "GPT 4o") -> Tuple[str, di
 def azure_llm_chat_stream(messages: List[dict],
                           model: str = "GPT 4o") -> Tuple[Generator[str, None, None], dict]:
     """
-    Retourne (generator, headers)  – headers idem que pour azure_llm_chat.
+    Retourne (generator, headers) – headers idem que pour azure_llm_chat.
     """
+    # ── Bascule auto Vision → GPT 4o
+    if _requires_vision(messages) and not model.startswith("GPT 4o"):
+        model = "GPT 4o"
+
     cfg = RAW_MODELS[model]
     if cfg.get("merge_system_into_user"):
         messages = _merge_system(messages)
@@ -240,16 +261,14 @@ def azure_llm_chat_stream(messages: List[dict],
             "model": ep.rsplit("/", 3)[-3],
             "stream": True,
         }
-        model_used = payload["model"]
-        headers = {"x-llm-model": model, "x-llm-deployment": model_used}
+        deployment = payload["model"]
+        headers_out = {"x-llm-model": model, "x-llm-deployment": deployment}
 
         try:
             resp = requests.post(
                 ep,
                 headers={"api-key": api_key, "Content-Type": "application/json"},
-                json=payload,
-                stream=True,
-                timeout=90,
+                json=payload, stream=True, timeout=90,
             )
             resp.raise_for_status()
 
@@ -263,10 +282,8 @@ def azure_llm_chat_stream(messages: List[dict],
                     data = json.loads(chunk)
                     if data.get("choices"):
                         delta = data["choices"][0]["delta"].get("content")
-                        if delta:
-                            yield delta
-
-            return _gen(), headers
+                        if delta: yield delta
+            return _gen(), headers_out
 
         except (requests.HTTPError, requests.RequestException):
             _rotate_on_fail(model)
@@ -274,3 +291,40 @@ def azure_llm_chat_stream(messages: List[dict],
             continue
 
     raise RuntimeError(f"Toutes les tentatives de streaming ont échoué pour {model}")
+
+# ╔════════════════════════════  OCR ‹ GPT-4o vision ›  ════════════════════╗
+def gpt4o_ocr(image_bytes: bytes, mime: str = "image/png") -> str:
+    """
+    Renvoie la transcription exacte de tout le texte présent sur l’image.
+    Utilise GPT-4o vision (même déploiement que le chat).
+    """
+    b64 = base64.b64encode(image_bytes).decode()
+    prompt = [
+        {"role": "user", "content": [
+            {"type": "text",
+             "text": "Transcris exactement tout le texte présent sur l'image."},
+            {"type": "image_url",
+             "image_url": {"url": f"data:{mime};base64,{b64}"}}]}
+    ]
+    txt, _ = azure_llm_chat(prompt, model="GPT 4o")
+    return txt.strip()
+
+
+# ╔════════════════════════════  DALL·E-3 génération  ══════════════════════╗
+def dalle3_generate(prompt: str, size: str = "1024x1024") -> str:
+    """
+    Génère une image via DALL·E-3 (déploiement Azure) et renvoie l’URL SAS.
+    Variables requises dans .env :
+      AZ_dall-e-3_API, AZ_dall-e-3_ENDPOINT  (configurées par l’utilisateur)
+    """
+    api_key  = os.getenv("AZ_dall-e-3_API")
+    endpoint = os.getenv("AZ_dall-e-3_ENDPOINT")
+    if not api_key or not endpoint:
+        raise RuntimeError("Variables AZ_dall-e-3_API / AZ_dall-e-3_ENDPOINT manquantes")
+
+    payload = {"prompt": prompt, "n": 1, "size": size}
+    r = requests.post(endpoint, headers={
+                      "api-key": api_key, "Content-Type": "application/json"},
+                      json=payload, timeout=60)
+    r.raise_for_status()
+    return r.json()["data"][0]["url"]
