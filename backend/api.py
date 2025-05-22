@@ -237,30 +237,34 @@ def delete_conv(conv_id: str, user: dict = Depends(get_current_user)):
 # ───────────────────────────── /chat  (réponse complète)
 @router.post("/chat", response_model=ChatResponse)
 def chat_endpoint(req: ChatRequest, user: dict = Depends(get_current_user)):
-    uid = user["entra_oid"]
+    uid  = user["entra_oid"]
     conv, prompt = _prepare_conversation(req, uid)
 
-    answer = azure_llm_chat(prompt, model="GPT 4o")
+    answer, llm_headers = azure_llm_chat(prompt, model="GPT 4o")
 
     conv["messages"].append({"role": "assistant", "content": answer})
     update_conversation(conv)
 
-    headers = {"x-conversation-id": conv["id"]}
-    return JSONResponse({"answer": answer, "conversationId": conv["id"]}, headers=headers)
+    headers = {"x-conversation-id": conv["id"], **llm_headers}
+    return JSONResponse(
+        {"answer": answer, "conversationId": conv["id"]},
+        headers=headers,
+    )
 
 # ───────────────────────────── /chat/stream  (StreamingResponse)
 @router.post("/chat/stream")
 def chat_stream(req: ChatRequest, user: dict = Depends(get_current_user)):
-    uid = user["entra_oid"]
+    uid  = user["entra_oid"]
     conv, prompt = _prepare_conversation(req, uid)
 
-    def gen():
+    gen, llm_headers = azure_llm_chat_stream(prompt, model="GPT 4o")
+
+    def wrapper():
         buffer = ""
         try:
-            for delta in azure_llm_chat_stream(prompt, model="GPT 4o"):
+            for delta in gen:
                 buffer += delta
                 yield delta
-            # fin : on sauve le message bot
             conv["messages"].append({"role": "assistant", "content": buffer})
             update_conversation(conv)
         except Exception as exc:
@@ -268,12 +272,13 @@ def chat_stream(req: ChatRequest, user: dict = Depends(get_current_user)):
             yield f"\n[ERREUR] {exc}\n"
 
     return StreamingResponse(
-        gen(),
+        wrapper(),
         media_type="text/plain",
         headers={
             "Cache-Control": "no-cache",
             "X-Accel-Buffering": "no",
-            "x-conversation-id": conv["id"],        # ← très important
+            "x-conversation-id": conv["id"],
+            **llm_headers,
         },
     )
 

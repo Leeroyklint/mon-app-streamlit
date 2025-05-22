@@ -164,13 +164,19 @@ def _sleep(resp, attempt):
     time.sleep(wait + random.random())
 
 # ─── SYNC  (remplace entièrement azure_llm_chat)
-def azure_llm_chat(messages: list[dict], model: str = "GPT 4o") -> str:
+def azure_llm_chat(messages: List[dict], model: str = "GPT 4o") -> Tuple[str, dict]:
+    """
+    Retourne (content, headers) où headers = {
+        "x-llm-model":       "GPT 4o",
+        "x-llm-deployment":  "gpt-4o-0125-preview", ...
+    }
+    """
     cfg = RAW_MODELS[model]
     if cfg.get("merge_system_into_user"):
         messages = _merge_system(messages)
 
     global_attempt = 0
-    while global_attempt < len(cfg["env_keys"]):     # on fera au max un tour complet
+    while global_attempt < len(cfg["env_keys"]):
         api_key, ep, rpm = _pickup_creds(model)
         _wait_slot(ep, rpm)
 
@@ -181,36 +187,50 @@ def azure_llm_chat(messages: list[dict], model: str = "GPT 4o") -> str:
                 "model": ep.rsplit("/", 3)[-3],
             }
             try:
-                r = requests.post(ep, headers={"api-key": api_key,
-                                               "Content-Type": "application/json"},
-                                   json=payload, timeout=60)
+                r = requests.post(
+                    ep,
+                    headers={"api-key": api_key, "Content-Type": "application/json"},
+                    json=payload,
+                    timeout=60,
+                )
                 r.raise_for_status()
-                return r.json()["choices"][0]["message"]["content"]
+
+                data = r.json()
+                model_used = data.get("model") or payload["model"]
+                headers = {
+                    "x-llm-model":      model,
+                    "x-llm-deployment": model_used,
+                }
+
+                logger.info("LLM %s via %s (%s tok in/out)",
+                            model, model_used,
+                            data.get("usage", {}))
+                return data["choices"][0]["message"]["content"], headers
 
             except requests.HTTPError as exc:
                 if r.status_code in (429, 503):
-                    _sleep(r, local_try)
-                    continue                # ↺ même endpoint
+                    _sleep(r, local_try); continue
                 raise RuntimeError(f"Azure {r.status_code}: {exc}") from exc
-
             except requests.RequestException:
-                _sleep(r, local_try)
-                continue                    # ↺ même endpoint
+                _sleep(r, local_try); continue
 
-        # après 3 échecs sur ce déploiement → suivant
         _rotate_on_fail(model)
         global_attempt += 1
 
     raise RuntimeError(f"Toutes les tentatives ont échoué pour {model}")
 
-# ╔════════════════════════════  STREAM  ════════════════════════════════════╗
-def azure_llm_chat_stream(messages: list[dict], model: str = "GPT 4o"):
+# ╔════════════════════════════  STREAM  ══════════════════════════════════╗
+def azure_llm_chat_stream(messages: List[dict],
+                          model: str = "GPT 4o") -> Tuple[Generator[str, None, None], dict]:
+    """
+    Retourne (generator, headers)  – headers idem que pour azure_llm_chat.
+    """
     cfg = RAW_MODELS[model]
     if cfg.get("merge_system_into_user"):
         messages = _merge_system(messages)
 
-    global_rotations = 0
-    while global_rotations < len(cfg["env_keys"]):
+    global_rot = 0
+    while global_rot < len(cfg["env_keys"]):
         api_key, ep, rpm = _pickup_creds(model)
         _wait_slot(ep, rpm)
 
@@ -220,25 +240,37 @@ def azure_llm_chat_stream(messages: list[dict], model: str = "GPT 4o"):
             "model": ep.rsplit("/", 3)[-3],
             "stream": True,
         }
+        model_used = payload["model"]
+        headers = {"x-llm-model": model, "x-llm-deployment": model_used}
+
         try:
-            with requests.post(ep, headers={"api-key": api_key,
-                                            "Content-Type": "application/json"},
-                               json=payload, stream=True, timeout=90) as resp:
-                resp.raise_for_status()
+            resp = requests.post(
+                ep,
+                headers={"api-key": api_key, "Content-Type": "application/json"},
+                json=payload,
+                stream=True,
+                timeout=90,
+            )
+            resp.raise_for_status()
+
+            def _gen():
                 for raw in resp.iter_lines(decode_unicode=True):
-                    if not raw or not raw.startswith("data: "): continue
+                    if not raw or not raw.startswith("data: "):
+                        continue
                     chunk = raw[6:]
-                    if chunk.strip() == "[DONE]": return
+                    if chunk.strip() == "[DONE]":
+                        return
                     data = json.loads(chunk)
                     if data.get("choices"):
                         delta = data["choices"][0]["delta"].get("content")
-                        if delta: yield delta
-                return                                # fin normale
+                        if delta:
+                            yield delta
 
-        except (requests.HTTPError, requests.RequestException) as exc:
-            # 429/503 ou réseau → on re-essaie 3 fois localement, sinon rotate
+            return _gen(), headers
+
+        except (requests.HTTPError, requests.RequestException):
             _rotate_on_fail(model)
-            global_rotations += 1
+            global_rot += 1
             continue
 
     raise RuntimeError(f"Toutes les tentatives de streaming ont échoué pour {model}")

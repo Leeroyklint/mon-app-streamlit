@@ -105,7 +105,7 @@ export interface StreamCallbacks {
   onDelta:  (chunk: string) => void;
   onDone:   () => void;
   onError:  (err: any) => void;
-  onConvId?: (id: string) => void;          
+  onConvId?: (id: string) => void;
 }
 
 export function askQuestionStream(
@@ -137,6 +137,14 @@ export function askQuestionStream(
   })
     .then(async (r) => {
       if (!r.ok) throw new ApiError(r.status, await r.text());
+
+      /* === NOUVEAU : modèle & déploiement utilisés === */
+      const model      = r.headers.get("x-llm-model");
+      const deployment = r.headers.get("x-llm-deployment");
+      if (model) {
+        console.info("Réponse servie par :", model, "→", deployment);
+        /* Tu peux stocker ces infos dans un state global ou context si besoin */
+      }
 
       /* --- conversation ID reçu dès le 1er token --- */
       const newId = r.headers.get("x-conversation-id") || undefined;
