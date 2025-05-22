@@ -44,13 +44,17 @@ router = APIRouter()
 # ───────────────────────────── Résumé long thread
 ENC, TOK_LIMIT, KEEP_LAST = (
     tiktoken.get_encoding("cl100k_base"),
-    3_000,
-    8,
+    1500,
+    30,
 )
 SUM_MODEL  = "GPT o1-mini"
 SUM_SYSTEM = (
-    "Tu es un assistant qui résume factuellement une conversation pour "
-    "conserver uniquement les informations importantes, sans rien inventer."
+    "Tu résumes factuellement la conversation ci-dessous.\n"
+    "1. S'il y a de nouvelles INFORMATIONS PERSONNELLES STABLES sur l'utilisateur "
+    "(nom, âge, ville, métier, passions), ajoute-les en puces '•'.\n"
+    "également pour les codes informatiques, ajoute-les en puces '•'"
+    "2. Résume ensuite le reste en 2–3 phrases max.\n"
+    "N'invente rien."
 )
 
 def _ntokens(txt: str) -> int:
