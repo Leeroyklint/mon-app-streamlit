@@ -17,16 +17,16 @@ interface Props {
 /* ---------- icône fichier ---------- */
 const icon = (name: string) => {
   const ext = name.split(".").pop()?.toLowerCase() ?? "";
-  if (ext === "pdf")                     return pdfIcon;
-  if (ext === "doc" || ext === "docx")   return wordIcon;
-  if (["xls","xlsx","csv"].includes(ext))return excelIcon;
-  if (ext === "txt")                     return txtIcon;
+  if (ext === "pdf")                      return pdfIcon;
+  if (ext === "doc"  || ext === "docx")   return wordIcon;
+  if (["xls","xlsx","csv"].includes(ext)) return excelIcon;
+  if (ext === "txt")                      return txtIcon;
   return wordIcon;
 };
 
 /* ---------- constantes auto-resize ---------- */
-const MIN_HEIGHT = 28;   // ≃ 1 ligne
-const MAX_HEIGHT = 180;  // hauteur maxi (≈ 6 lignes)
+const MIN_HEIGHT = 28;    // ≃ 1 ligne
+const MAX_HEIGHT = 180;   // ≃ 6 lignes
 
 const ChatInput: React.FC<Props> = ({
   onSend,
@@ -50,13 +50,11 @@ const ChatInput: React.FC<Props> = ({
   const resize = useCallback(() => {
     const el = textareaRef.current;
     if (!el) return;
-    el.style.height = "auto";                       // remet à 1 ligne
+    el.style.height = "auto";
     const newH = Math.min(el.scrollHeight, MAX_HEIGHT);
     el.style.height    = `${newH}px`;
     el.style.overflowY = el.scrollHeight > MAX_HEIGHT ? "auto" : "hidden";
   }, []);
-
-  /* resize quand msg change ou à l’ouverture */
   useEffect(resize, [msg, resize]);
 
   /* ---------- envoi ---------- */
@@ -67,6 +65,11 @@ const ChatInput: React.FC<Props> = ({
     setMsg("");
     setFiles([]);
     if (fileRef.current) fileRef.current.value = "";
+  };
+
+  /* ---------- clic principal (Stop ou Envoyer) ---------- */
+  const primaryClick = () => {
+    streaming ? onStop() : send();
   };
 
   /* ---------- drag-n-drop ---------- */
@@ -81,32 +84,30 @@ const ChatInput: React.FC<Props> = ({
   };
 
   /* ---------- DOM ---------- */
-  const root     = variant === "bottom" ? "chat-input-form bottom" : "chat-input-form";
-  const blocked  = disabled || streaming;
+  const root    = variant === "bottom" ? "chat-input-form bottom" : "chat-input-form";
+  const blocked = disabled || streaming;
 
   return (
     <form
       className={root}
       onSubmit={e => {
         e.preventDefault();
-        send();
+        primaryClick();          // Enter dans le formulaire
       }}
       onDragOver={dragOver}
       onDrop={drop}
     >
-      {/* champ — textarea auto-redimensionnable */}
+      {/* champ texte auto-redimensionnable */}
       <textarea
         ref={textareaRef}
         rows={1}
         style={{ height: MIN_HEIGHT }}
         value={msg}
-        onChange={e => {
-          setMsg(e.target.value);
-        }}
+        onChange={e => setMsg(e.target.value)}
         onKeyDown={e => {
           if (e.key === "Enter" && !e.shiftKey) {
             e.preventDefault();
-            streaming ? onStop() : send();
+            primaryClick();      // Enter dans le textarea
           }
         }}
         placeholder="Posez une question ou joignez un fichier…"
@@ -114,7 +115,7 @@ const ChatInput: React.FC<Props> = ({
         disabled={disabled}
       />
 
-      {/* fichiers sélectionnés ------------------------------------------------ */}
+      {/* pièces jointes sélectionnées */}
       <div className="input-attachment-container">
         {files.map((f, i) => (
           <div key={i} className="input-attachment">
@@ -135,7 +136,7 @@ const ChatInput: React.FC<Props> = ({
         ))}
       </div>
 
-      {/* barre de boutons ----------------------------------------------------- */}
+      {/* barre boutons */}
       <div className="chat-input-button-row">
         <div className="chat-input-file">
           <input
@@ -156,7 +157,12 @@ const ChatInput: React.FC<Props> = ({
           </button>
         </div>
 
-        <button type="submit" className="chat-input-button" disabled={disabled}>
+        <button
+          type="button"               /* plus "submit" */
+          className="chat-input-button"
+          disabled={disabled}
+          onClick={primaryClick}
+        >
           {streaming ? "Stop" : "Envoyer"}
         </button>
       </div>

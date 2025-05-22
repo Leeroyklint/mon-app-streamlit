@@ -19,7 +19,7 @@ const icon = (name) => {
 };
 /* ---------- constantes auto-resize ---------- */
 const MIN_HEIGHT = 28; // ≃ 1 ligne
-const MAX_HEIGHT = 180; // hauteur maxi (≈ 6 lignes)
+const MAX_HEIGHT = 180; // ≃ 6 lignes
 const ChatInput = ({ onSend, onStop, disabled = false, streaming = false, variant = "bottom", }) => {
     const [msg, setMsg] = useState("");
     const [files, setFiles] = useState([]);
@@ -33,12 +33,11 @@ const ChatInput = ({ onSend, onStop, disabled = false, streaming = false, varian
         const el = textareaRef.current;
         if (!el)
             return;
-        el.style.height = "auto"; // remet à 1 ligne
+        el.style.height = "auto";
         const newH = Math.min(el.scrollHeight, MAX_HEIGHT);
         el.style.height = `${newH}px`;
         el.style.overflowY = el.scrollHeight > MAX_HEIGHT ? "auto" : "hidden";
     }, []);
-    /* resize quand msg change ou à l’ouverture */
     useEffect(resize, [msg, resize]);
     /* ---------- envoi ---------- */
     const send = () => {
@@ -51,6 +50,10 @@ const ChatInput = ({ onSend, onStop, disabled = false, streaming = false, varian
         setFiles([]);
         if (fileRef.current)
             fileRef.current.value = "";
+    };
+    /* ---------- clic principal (Stop ou Envoyer) ---------- */
+    const primaryClick = () => {
+        streaming ? onStop() : send();
     };
     /* ---------- drag-n-drop ---------- */
     const dragOver = (e) => {
@@ -68,14 +71,12 @@ const ChatInput = ({ onSend, onStop, disabled = false, streaming = false, varian
     const blocked = disabled || streaming;
     return (React.createElement("form", { className: root, onSubmit: e => {
             e.preventDefault();
-            send();
+            primaryClick(); // Enter dans le formulaire
         }, onDragOver: dragOver, onDrop: drop },
-        React.createElement("textarea", { ref: textareaRef, rows: 1, style: { height: MIN_HEIGHT }, value: msg, onChange: e => {
-                setMsg(e.target.value);
-            }, onKeyDown: e => {
+        React.createElement("textarea", { ref: textareaRef, rows: 1, style: { height: MIN_HEIGHT }, value: msg, onChange: e => setMsg(e.target.value), onKeyDown: e => {
                 if (e.key === "Enter" && !e.shiftKey) {
                     e.preventDefault();
-                    streaming ? onStop() : send();
+                    primaryClick(); // Enter dans le textarea
                 }
             }, placeholder: "Posez une question ou joignez un fichier\u2026", className: "chat-input-input", disabled: disabled }),
         React.createElement("div", { className: "input-attachment-container" }, files.map((f, i) => (React.createElement("div", { key: i, className: "input-attachment" },
@@ -88,6 +89,6 @@ const ChatInput = ({ onSend, onStop, disabled = false, streaming = false, varian
             React.createElement("div", { className: "chat-input-file" },
                 React.createElement("input", { type: "file", multiple: true, ref: fileRef, style: { display: "none" }, onChange: e => add(e.target.files), disabled: blocked }),
                 React.createElement("button", { type: "button", className: "file-upload-btn", onClick: () => fileRef.current?.click(), disabled: blocked }, "Joindre un document")),
-            React.createElement("button", { type: "submit", className: "chat-input-button", disabled: disabled }, streaming ? "Stop" : "Envoyer"))));
+            React.createElement("button", { type: "button" /* plus "submit" */, className: "chat-input-button", disabled: disabled, onClick: primaryClick }, streaming ? "Stop" : "Envoyer"))));
 };
 export default ChatInput;
