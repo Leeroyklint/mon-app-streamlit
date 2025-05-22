@@ -14,20 +14,21 @@ import { reserve } from "../services/rateLimiter";
 import "./ChatApp.css";
 
 const ChatApp: React.FC = () => {
-  /* ── routing ── */
+  /* ───────────────────────── routing ─────────────────────────── */
   const { conversationId: routeConvId } = useParams<{ conversationId: string }>();
   const navigate = useNavigate();
 
-  /* ── state ── */
+  /* ───────────────────────── state ───────────────────────────── */
   const [conversationId, setConversationId] = useState<string | undefined>(routeConvId);
   const [messages,       setMessages]       = useState<Message[]>([]);
   const [streaming,      setStreaming]      = useState(false);
   const [ingesting,      setIngesting]      = useState(false);
-  const [nbDocs,         setNbDocs]         = useState(0);     // ← nb de docs en cours
+  const [nbDocs,         setNbDocs]         = useState(0);
 
   const idRef     = useRef(0);
   const streamRef = useRef<{ cancel: () => void } | null>(null);
 
+  /* ───────────────────────── reset vers nouveau chat ─────────── */
   const resetToNewChat = () => {
     idRef.current = 0;
     setConversationId(undefined);
@@ -35,11 +36,22 @@ const ChatApp: React.FC = () => {
     navigate("/");
   };
 
-  /* ── charge historique (merge) ── */
+  /* ───────────────────────── changement d’URL ──────────────────
+     Si l’ID change → on vide l’état local, il sera rechargé       */
   useEffect(() => {
-    if (routeConvId && !ingesting && messages.length === 0) load(routeConvId);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [routeConvId, ingesting]);
+    if (routeConvId && routeConvId !== conversationId) {
+      idRef.current = 0;
+      setConversationId(routeConvId);
+      setMessages([]);
+    }
+  }, [routeConvId]);
+
+  /* ───────────────────────── chargement historique ───────────── */
+  useEffect(() => {
+    if (conversationId && !ingesting && messages.length === 0) {
+      load(conversationId);
+    }
+  }, [conversationId, ingesting, messages.length]);
 
   const load = async (convId: string) => {
     try {
@@ -47,6 +59,7 @@ const ChatApp: React.FC = () => {
       setMessages(prev => {
         const sigPrev = new Set(prev.map(m => m.sender + "::" + m.text));
         const merged  = [...prev];
+
         hist.forEach((m: any) => {
           const sig = (m.role === "assistant" ? "bot::" : "user::") + m.content;
           if (!sigPrev.has(sig)) {
@@ -70,7 +83,7 @@ const ChatApp: React.FC = () => {
     }
   };
 
-  /* ── refresh auto quand conv mise à jour ── */
+  /* ───────────────────────── reload auto quand conv MAJ ─────── */
   useEffect(() => {
     if (!conversationId) return;
     const reload = () => load(conversationId);
@@ -78,7 +91,7 @@ const ChatApp: React.FC = () => {
     return () => window.removeEventListener("conversationUpdated", reload);
   }, [conversationId]);
 
-  /* ── helpers ── */
+  /* ───────────────────────── helpers UI ──────────────────────── */
   const add = (
     text: string,
     sender: "user" | "bot",
@@ -89,16 +102,19 @@ const ChatApp: React.FC = () => {
       { id: idRef.current++, text, sender, ...(atts ? { attachments: atts } : {}) },
     ]);
 
-  const stopStream = () => { streamRef.current?.cancel(); setStreaming(false); };
+  const stopStream = () => {
+    streamRef.current?.cancel();
+    setStreaming(false);
+  };
 
-  /* ── send / upload ── */
+  /* ───────────────────────── envoi / upload ──────────────────── */
   const handleSend = async (userMessage: string, files: File[]) => {
     if (streaming || ingesting) return;
 
     let convId = conversationId;
     const cleanMsg = userMessage.trim();
 
-    /* ───────── preview immédiate si fichiers ───────── */
+    /* —— preview instantané si fichiers —— */
     let preview: Attachment[] | undefined;
     if (files.length) {
       preview = files.map(f => ({
@@ -106,7 +122,7 @@ const ChatApp: React.FC = () => {
         url:  URL.createObjectURL(f),
         type: f.type || "Document",
       }));
-      add(cleanMsg, "user", preview);              // bulle visible tout de suite
+      add(cleanMsg, "user", preview);
 
       setIngesting(true);
       setNbDocs(files.length);
@@ -123,14 +139,13 @@ const ChatApp: React.FC = () => {
         setNbDocs(0);
       }
     } else if (cleanMsg) {
-      /* pas de fichiers → bulle texte normale */
       add(cleanMsg, "user");
     }
 
-    /* --- on ne stream que s’il y a vraiment un message texte --- */
+    /* — rien à streamer ? — */
     if (!cleanMsg) return;
 
-    /* ───────── appel LLM ───────── */
+    /* —— appel LLM en streaming —— */
     const wait = reserve("GPT 4o");
     let botId: number | null = null;
     let buffer = "";
@@ -178,7 +193,7 @@ const ChatApp: React.FC = () => {
     wait ? setTimeout(launch, wait) : launch();
   };
 
-  /* ── render ── */
+  /* ───────────────────────── render ──────────────────────────── */
   const landing = !conversationId && messages.length === 0;
 
   return (
@@ -197,7 +212,7 @@ const ChatApp: React.FC = () => {
             onSend={handleSend}
             onStop={stopStream}
             streaming={streaming}
-            disabled={ingesting}      
+            disabled={ingesting}
             variant="bottom"
           />
         </>
