@@ -1,75 +1,94 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import ChatInput from "./ChatInput";
 import ChatMessages from "./ChatMessages";
-import { askQuestion, createConversation, getMessages } from "../services/conversationService";
+import { askQuestionStream, createConversation, getMessages, } from "../services/conversationService";
 import { uploadDocuments } from "../services/documentService";
+import { reserve } from "../services/rateLimiter";
 const DocumentsChat = () => {
-    const [conversationId, setConversationId] = useState(undefined);
+    const [conversationId, setConvId] = useState();
     const [messages, setMessages] = useState([]);
-    const loadMessages = async (convId) => {
-        try {
-            const fetched = await getMessages(convId);
-            setMessages(fetched.map((m, index) => ({
-                id: index,
-                text: m.content,
-                sender: m.role === "assistant" ? "bot" : "user"
-            })));
-        }
-        catch (error) {
-            console.error("Erreur chargement messages :", error);
-        }
-    };
+    const [streaming, setStreaming] = useState(false);
+    const [ingesting, setIngesting] = useState(false);
+    const [nbDocs, setNbDocs] = useState(0);
+    const idRef = useRef(0);
+    const streamRef = useRef(null);
     useEffect(() => {
-        if (conversationId)
-            loadMessages(conversationId);
-    }, [conversationId]);
-    // Mise à jour pour accepter un tableau de fichiers
-    const handleSend = async (userMessage, files) => {
-        const convType = "doc";
-        // Si des fichiers sont sélectionnés, on les upload
-        if (files.length > 0) {
-            try {
-                const result = await uploadDocuments(files);
-                setConversationId(result.conversationId);
-            }
-            catch (error) {
-                console.error("Erreur upload documents :", error);
-            }
+        if (!conversationId)
             return;
-        }
-        // Création d'une nouvelle conversation
-        if (!conversationId) {
+        getMessages(conversationId).then(f => setMessages(f.map((m, i) => ({
+            id: i,
+            text: m.content,
+            sender: m.role === "assistant" ? "bot" : "user",
+        }))));
+    }, [conversationId]);
+    const add = (t, s, atts) => setMessages(p => [...p, { id: idRef.current++, text: t, sender: s, ...(atts ? { attachments: atts } : {}) }]);
+    const stopStream = () => { streamRef.current?.cancel(); setStreaming(false); };
+    const handleSend = async (userMessage, files) => {
+        if (streaming || ingesting)
+            return;
+        const convType = "doc";
+        const cleanMsg = userMessage.trim();
+        /* ----- fichiers -> preview immédiate ----- */
+        let preview;
+        if (files.length) {
+            preview = files.map(f => ({
+                name: f.name,
+                url: URL.createObjectURL(f),
+                type: f.type || "Document",
+            }));
+            add(cleanMsg, "user", preview);
+            setIngesting(true);
+            setNbDocs(files.length);
             try {
-                const newConv = await createConversation(userMessage, convType);
-                setConversationId(newConv.conversationId);
-                setMessages(prev => [
-                    ...prev,
-                    { id: Date.now(), text: userMessage, sender: "user" },
-                    { id: Date.now() + 1, text: newConv.answer, sender: "bot" }
-                ]);
-                return;
+                const res = await uploadDocuments(files, conversationId);
+                setConvId(res.conversationId);
             }
-            catch (error) {
-                console.error("Erreur création conv doc :", error);
-                return;
+            finally {
+                setIngesting(false);
+                setNbDocs(0);
             }
+            if (!cleanMsg)
+                return; // pas de question -> on s’arrête là
         }
-        // Envoi dans une conversation existante
-        try {
-            const answer = await askQuestion(userMessage, conversationId, convType);
-            setMessages(prev => [
-                ...prev,
-                { id: Date.now(), text: userMessage, sender: "user" },
-                { id: Date.now() + 1, text: answer, sender: "bot" }
-            ]);
+        else if (cleanMsg) {
+            add(cleanMsg, "user");
         }
-        catch (error) {
-            console.error("Erreur question doc :", error);
+        else {
+            return; // rien à faire
         }
+        /* ----- create conv on-the-fly (empty) ----- */
+        let convId = conversationId;
+        if (!convId) {
+            const c = await createConversation("", convType);
+            convId = c.conversationId;
+            setConvId(convId);
+        }
+        /* ----- stream answer ----- */
+        const wait = reserve("GPT 4o");
+        let botId;
+        let buffer = "";
+        setStreaming(true);
+        const launch = () => {
+            streamRef.current = askQuestionStream({ question: cleanMsg, conversationId: convId, conversationType: convType }, {
+                onDelta: d => {
+                    buffer += d;
+                    if (botId === undefined) {
+                        botId = idRef.current++;
+                        setMessages(p => [...p, { id: botId, text: d, sender: "bot" }]);
+                    }
+                    else {
+                        setMessages(p => p.map(m => (m.id === botId ? { ...m, text: buffer } : m)));
+                    }
+                },
+                onDone: () => setStreaming(false),
+                onError: e => { console.error("Stream error :", e); setStreaming(false); },
+            });
+        };
+        wait ? setTimeout(launch, wait) : launch();
     };
     return (React.createElement("div", null,
-        React.createElement("h2", null, "Chat sur Documents"),
-        React.createElement(ChatMessages, { messages: messages }),
-        React.createElement(ChatInput, { onSend: handleSend })));
+        React.createElement("h2", null, "Chat Documents"),
+        React.createElement(ChatMessages, { messages: messages, streaming: streaming, waitingForDoc: ingesting, nbDocs: nbDocs }),
+        React.createElement(ChatInput, { onSend: handleSend, onStop: stopStream, streaming: streaming, disabled: ingesting })));
 };
 export default DocumentsChat;

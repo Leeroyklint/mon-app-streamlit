@@ -15,7 +15,7 @@ const models = [
     { id: "model4", name: "GPT o1-mini", subtitle: "Léger mais plus malin, mieux que 4o Mini" },
     { id: "model5", name: "GPT 4.1", subtitle: "Avancé et rapide, excellent raisonnement, haut niveau." },
     { id: "model6", name: "GPT 4.1-mini", subtitle: "Très rapide et capable, proche du grand modèle" },
-    { id: "model7", name: "GPT o3-mini", subtitle: "Modèle avancé, bonnes performances" },
+    { id: "model7", name: "GPT o3-mini", subtitle: "Modèle avancé, bonnes performances, idéal pour les développeurs" },
 ];
 function App() {
     const [userName, setUserName] = useState("Chargement...");

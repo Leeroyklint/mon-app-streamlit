@@ -35,3 +35,20 @@
 .copy-btn{background:none;border:none;color:#ddd;font-size:12px;cursor:pointer;}
 .copy-btn:hover{color:#fff;}
 .code-block pre{margin:0;padding:12px;overflow-x:auto;}
+
+/* -------- spinner bot quand on attend les premiers tokens ------- */
+.bot-spinner{
+  width:14px;height:14px;
+  border:3px solid #ddd;
+  border-top-color:#666;
+  border-radius:50%;
+  animation:spin .8s linear infinite;
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+.thinking-placeholder{
+  text-align:center;
+  font-style:italic;
+  color:#6b6b6b;
+  margin:24px 0;
+}

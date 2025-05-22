@@ -7,18 +7,20 @@ interface Props {
   disabled?: boolean;
 }
 
-/**
- * Écran d’accueil (titre + champ centré)
- * – le wrapper entier n’intercepte pas les clics (pointer-events:none)
- *   ⇒ la sidebar reste interactive.
- */
+/* écran d’accueil – pas de streaming ici */
 const WelcomeScreen: React.FC<Props> = ({ onSend, disabled }) => (
   <div className="welcome-wrapper">
     <div className="welcome-content">
       <h1 className="welcome-title">Comment puis-je vous aider&nbsp;?</h1>
 
       <div className="welcome-input">
-        <ChatInput onSend={onSend} disabled={disabled} variant="center" />
+        <ChatInput
+          onSend={onSend}
+          onStop={() => {}}
+          streaming={false}
+          disabled={disabled}
+          variant="center"
+        />
       </div>
     </div>
   </div>

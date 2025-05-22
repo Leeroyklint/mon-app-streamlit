@@ -12,8 +12,9 @@ logging.basicConfig(
     stream=sys.stdout,
 )
 
-def json_dumps(obj):
-    try:
-        return json.dumps(obj, default=str)             # évite les objets non‑sérialisables
-    except Exception:
-        return str(obj)
+for name in (
+    "azure.core.pipeline.policies.http_logging_policy",  # request/response
+    "azure.cosmos",                                     # au cas où
+):
+    logging.getLogger(name).setLevel(logging.WARNING)   # ou ERROR/CRITICAL
+

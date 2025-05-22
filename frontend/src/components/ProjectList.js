@@ -4,6 +4,7 @@ import { getProjects, deleteProject } from "../services/projectService";
 import { getConversationsForProject, deleteConversation, } from "../services/conversationService";
 import ConfirmModal from "./ConfirmModal";
 const ProjectList = ({ onCreateProject }) => {
+    /* ─────────── state ─────────── */
     const [projects, setProjects] = useState([]);
     const [expanded, setExpanded] = useState({});
     const [convs, setConvs] = useState({});
@@ -16,7 +17,7 @@ const ProjectList = ({ onCreateProject }) => {
     const currentProjId = location.pathname.startsWith("/projects/")
         ? location.pathname.split("/")[2]
         : null;
-    /* ---------- chargement projets ---------- */
+    /* ─────────── chargement projets ─────────── */
     const loadProjects = async () => {
         try {
             setProjects(await getProjects());
@@ -26,10 +27,9 @@ const ProjectList = ({ onCreateProject }) => {
         }
     };
     useEffect(() => { loadProjects(); }, []);
-    /* ---------- évènements globaux ---------- */
+    /* ─────────── listeners globaux ─────────── */
     useEffect(() => {
         const onProj = () => loadProjects();
-        window.addEventListener("projectCreated", onProj);
         const onConv = (e) => {
             const { projectId, conversation } = e.detail || {};
             if (!projectId || !conversation)
@@ -42,22 +42,29 @@ const ProjectList = ({ onCreateProject }) => {
                 return { ...p, [projectId]: [conversation, ...list] };
             });
         };
+        const onUpdate = () => {
+            /* un titre ou message a changé → recharger si la conv appartient à un projet */
+            Object.keys(convs).forEach(pid => ensureConvsLoaded(pid));
+        };
+        window.addEventListener("projectCreated", onProj);
         window.addEventListener("conversationCreated", onConv);
+        window.addEventListener("conversationUpdated", onUpdate);
         return () => {
             window.removeEventListener("projectCreated", onProj);
             window.removeEventListener("conversationCreated", onConv);
+            window.removeEventListener("conversationUpdated", onUpdate);
         };
-    }, []);
-    /* ---------- helpers ---------- */
+    }, [convs]);
+    /* ─────────── helpers ─────────── */
     const ensureConvsLoaded = async (projId) => {
         if (convs[projId])
-            return; // déjà chargées
+            return;
         try {
-            const list = await getConversationsForProject(projId); // ⬅️ fetch
-            setConvs(prev => ({ ...prev, [projId]: list })); // ⬅️ set sans await
+            const list = await getConversationsForProject(projId);
+            setConvs(prev => ({ ...prev, [projId]: list }));
         }
         catch {
-            console.error("Err convs projet");
+            console.error("Erreur convs projet");
         }
     };
     const openProject = async (id) => {
@@ -65,7 +72,7 @@ const ProjectList = ({ onCreateProject }) => {
         await ensureConvsLoaded(id);
         navigate(`/projects/${id}`);
     };
-    /* ---------- suppression (confirm + action) ---------- */
+    /* ─────────── suppression ─────────── */
     const doDelete = async () => {
         if (!toDelete)
             return;
@@ -95,7 +102,7 @@ const ProjectList = ({ onCreateProject }) => {
         }
         setToDelete(null);
     };
-    /* ---------- rendu ---------- */
+    /* ─────────── rendu ─────────── */
     if (projects.length === 0)
         return (React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 6, cursor: "pointer", padding: "6px 4px" }, onClick: onCreateProject },
             React.createElement("span", { style: { fontSize: 18 } }, "\uD83D\uDCC2"),

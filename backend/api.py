@@ -1,54 +1,39 @@
 """
-API — Klint GPT v2
+API — Klint GPT v3
 • ingestion multi-documents : résumé + RAG
-• même endpoint /chat pour tous les types de conversation
-• routes projets / conversations inchangées
+• /api/chat           ➜ réponse complète
+• /api/chat/stream    ➜ réponse token-par-token (header x-conversation-id)
 """
 
 from __future__ import annotations
-import logging, tiktoken, jwt
+
+import logging, tiktoken
 from datetime import datetime, timezone
-from typing import Optional, List
+from typing import Optional, List, Tuple, Iterable
 
 from fastapi import (
-    APIRouter,
-    HTTPException,
-    Depends,
-    UploadFile,
-    File,
-    Form,
-    Request,
+    APIRouter, HTTPException, Depends, UploadFile,
+    File, Form, Request
 )
-from pydantic import BaseModel
+from fastapi.responses import StreamingResponse, JSONResponse
 
 from backend.auth import get_current_user
 from backend.db   import (
-    create_conversation,
-    get_conversation,
-    update_conversation,
-    list_conversations,
-    delete_conversation,
-    create_project,
-    list_projects,
-    delete_project,
-    get_project,
-    update_project,
+    create_conversation, get_conversation, update_conversation,
+    list_conversations, delete_conversation,
+    create_project, list_projects, delete_project,
+    get_project, update_project,
 )
-from backend.model  import azure_llm_chat
+from backend.model import azure_llm_chat, azure_llm_chat_stream   # ← nouveau wrapper
 from backend.models import (
-    parse_pdf,
-    parse_docx,
-    parse_txt,
-    parse_excel,
-    get_text_chunks,
-    build_vectorstore_from_texts,
-    search_documents,
-    summarize_text,                # ⬅️ résumé automatique à l’upload
+    parse_pdf, parse_docx, parse_txt, parse_excel,
+    get_text_chunks, build_vectorstore_from_texts,
+    search_documents, summarize_text,
 )
 
-# ─────────────────────────────────────────────────────────────────── Logger
+# ───────────────────────────── Logger
 logger = logging.getLogger("klint.api")
-if not logger.handlers:           # évite doublons sous hot-reload
+if not logger.handlers:
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
@@ -56,31 +41,29 @@ if not logger.handlers:           # évite doublons sous hot-reload
 
 router = APIRouter()
 
-# ────────────────────────────────────────────────────────── Résumé thread long
-ENC        = tiktoken.get_encoding("cl100k_base")
-TOK_LIMIT  = 3_000        # on résume quand on dépasse ce seuil
-KEEP_LAST  = 8            # on garde les 8 derniers messages « bruts »
+# ───────────────────────────── Résumé long thread
+ENC, TOK_LIMIT, KEEP_LAST = (
+    tiktoken.get_encoding("cl100k_base"),
+    3_000,
+    8,
+)
 SUM_MODEL  = "GPT o1-mini"
 SUM_SYSTEM = (
-    "Tu es un assistant qui résume factuellement une conversation pour conserver "
-    "uniquement les informations importantes, sans rien inventer."
+    "Tu es un assistant qui résume factuellement une conversation pour "
+    "conserver uniquement les informations importantes, sans rien inventer."
 )
 
 def _ntokens(txt: str) -> int:
     return len(ENC.encode(txt))
 
 def _ensure_summary(conv: dict) -> None:
-    """
-    Résume tout ce qui précède KEEP_LAST messages si l’historique dépasse TOK_LIMIT.
-    Stocke la synthèse dans conv['summary'] + index jusqu’où on a résumé.
-    """
     msgs = conv.get("messages", [])
     done = conv.get("summary_index", 0)
     total = _ntokens(conv.get("summary", "")) + sum(_ntokens(m["content"]) for m in msgs)
     if total <= TOK_LIMIT:
         return
 
-    cut   = max(done, len(msgs) - KEEP_LAST)
+    cut = max(done, len(msgs) - KEEP_LAST)
     older = msgs[done:cut]
     if not older:
         return
@@ -93,11 +76,11 @@ def _ensure_summary(conv: dict) -> None:
         ],
         model=SUM_MODEL,
     )
-    conv["summary"]       = (conv.get("summary","") + "\n\n" + summary).strip()
+    conv["summary"]       = (conv.get("summary", "") + "\n\n" + summary).strip()
     conv["summary_index"] = cut
     update_conversation(conv)
 
-# ───────────────────────────────────────────────────────────── Prompt builder
+# ───────────────────────────── Prompt builder & helper
 def _build_prompt(conv: dict, question: str, base_sys: str) -> list[dict]:
     _ensure_summary(conv)
 
@@ -114,7 +97,74 @@ def _build_prompt(conv: dict, question: str, base_sys: str) -> list[dict]:
     prompt.append({"role": "user", "content": question})
     return prompt
 
-# ────────────────────────────────────────────────────────────  Schémas pydantic
+def _prepare_conversation(req, uid: str) -> Tuple[dict, Iterable[dict]]:
+    """
+    Charge ou crée la conversation, ajoute le prompt utilisateur,
+    construit le tableau complet « messages » à envoyer au LLM.
+    """
+    # --- récup / création -------------------------------------------
+    if req.conversationId:
+        conv = get_conversation(uid, req.conversationId)
+        if not conv:
+            raise HTTPException(404, "Conversation non trouvée")
+        msg = {"role": "user", "content": req.question}
+
+        # si des documents ont été ajoutés ET qu’aucun message n’a déjà leurs PJ
+        if conv.get("documents") and not any(m.get("attachments") for m in conv["messages"]):
+            msg["attachments"] = [
+                {"name": d["name"], "type": d["name"].split(".")[-1]}
+                for d in conv["documents"]
+            ]
+
+        conv["messages"].append(msg)
+        update_conversation(conv)
+    else:
+        conv = create_conversation(
+            uid,
+            req.question,
+            conversation_type=req.conversationType,
+            project_id=req.projectId,
+        )
+        if req.projectId:
+            conv["instructions"] = req.instructions or ""
+        update_conversation(conv)
+
+    # --- titre auto si manquant -------------------------------------
+    if conv.get("title","").lower().startswith("nouveau chat") and req.question.strip():
+        conv["title"] = req.question.strip()[:30]
+        update_conversation(conv) 
+
+    # --- contexte (instr + docs + RAG) -------------------------------
+    instr, all_docs = conv.get("instructions", ""), conv.get("documents", [])[:]
+
+    if conv.get("project_id"):
+        proj = get_project(uid, conv["project_id"])
+        if proj:
+            all_docs += proj.get("files", [])
+            if not instr:
+                instr = proj.get("instructions", "")
+
+    doc_summaries = "\n\n".join(
+        f"### {d['name']}\n{d.get('summary', '')}" for d in all_docs if d.get("summary")
+    )
+
+    rag_context = ""
+    if all_docs and req.question.strip():
+        chunks = get_text_chunks("\n".join(d["content"] for d in all_docs))
+        vs = build_vectorstore_from_texts(chunks)
+        rag_context = "\n\n".join(search_documents(vs, req.question, k=4))
+
+    base_sys = ""
+    if instr:         base_sys += f"Project instructions:\n{instr}\n\n"
+    if doc_summaries: base_sys += f"Document overviews:\n{doc_summaries}\n\n"
+    if rag_context:   base_sys += f"Context passages:\n{rag_context}"
+
+    prompt = _build_prompt(conv, req.question, base_sys)
+    return conv, prompt
+
+# ───────────────────────────── Schemas
+from pydantic import BaseModel
+
 class ChatRequest(BaseModel):
     question: str
     conversationId: Optional[str] = None
@@ -136,20 +186,25 @@ class ProjectRequest(BaseModel):
 class ProjectUpdateRequest(BaseModel):
     instructions: Optional[str] = ""
 
-# ─────────────────────────────────────────────────────────────── Utils
-def group_conversations_by_date(convs: list[dict]) -> dict[str, list[dict]]:
+# ───────────────────────────── Utilitaires dates → groupes
+def _group_by_date(convs: list[dict]) -> dict[str, list[dict]]:
     now = datetime.now(timezone.utc)
-    groups = {"Aujourd’hui": [], "7 jours précédents": [], "30 jours précédents": [], "Plus anciennes": []}
+    groups = {
+        "Aujourd’hui": [],
+        "7 jours précédents": [],
+        "30 jours précédents": [],
+        "Plus anciennes": [],
+    }
     for c in convs:
-        dt = datetime.fromisoformat(c["updated_at"].replace("Z","")).replace(tzinfo=timezone.utc)
-        d  = (now - dt).days
+        dt = datetime.fromisoformat(c["updated_at"].replace("Z", "")).replace(tzinfo=timezone.utc)
+        d = (now - dt).days
         if d == 0:        groups["Aujourd’hui"].append(c)
         elif d < 7:       groups["7 jours précédents"].append(c)
         elif d < 30:      groups["30 jours précédents"].append(c)
         else:             groups["Plus anciennes"].append(c)
     return groups
 
-# ───────────────────────────────────────────────────────── Routes ✦ user / convs
+# ───────────────────────────── Routes user / conversations
 @router.get("/user")
 def current_user(u: dict = Depends(get_current_user)):
     return u
@@ -161,7 +216,7 @@ def get_all_conversations(
     projectId: Optional[str] = None,
 ):
     convs = list_conversations(user["entra_oid"], conversationType, projectId)
-    return group_conversations_by_date(convs)
+    return _group_by_date(convs)
 
 @router.get("/conversations/{conv_id}/messages")
 def get_conv_messages(conv_id: str, user: dict = Depends(get_current_user)):
@@ -175,78 +230,56 @@ def delete_conv(conv_id: str, user: dict = Depends(get_current_user)):
     delete_conversation(user["entra_oid"], conv_id)
     return
 
-# ─────────────────────────────────────────────────────────────── Chat endpoint
+# ───────────────────────────── /chat  (réponse complète)
 @router.post("/chat", response_model=ChatResponse)
 def chat_endpoint(req: ChatRequest, user: dict = Depends(get_current_user)):
     uid = user["entra_oid"]
-    logger.info("POST /chat by %s | cid=%s q='%s…'", uid, req.conversationId, req.question[:60])
+    conv, prompt = _prepare_conversation(req, uid)
 
-    # ——— récupération ou création ————————————————————————————
-    if req.conversationId:
-        conv = get_conversation(uid, req.conversationId)
-        if not conv:
-            raise HTTPException(404, "Conversation non trouvée")
-        conv["messages"].append({"role": "user", "content": req.question})
-    else:
-        conv = create_conversation(
-            uid,
-            req.question,
-            conversation_type=req.conversationType,
-            project_id=req.projectId,
-        )
-        if req.projectId:
-            conv["instructions"] = req.instructions or ""
-        update_conversation(conv)
-
-    # ——— titre auto ————————————————————————————————
-    if conv.get("title","").lower().startswith("nouveau chat"):
-        conv["title"] = (req.question or "Chat").strip()[:30] or "Chat"
-
-    # ——— contexte : instructions + docs + RAG ——————————————
-    instr      = conv.get("instructions","")
-    all_docs   = conv.get("documents", [])[:]               # docs attachés au chat
-
-    # *Projets* ⇒ ajoute fichiers + instructions projet
-    if conv.get("project_id"):
-        proj = get_project(uid, conv["project_id"])
-        if proj:
-            all_docs += proj.get("files", [])
-            if not instr:
-                instr = proj.get("instructions","")
-
-    # · aperçu global (résumé) de chaque doc
-    doc_summaries = "\n\n".join(
-        f"### {d['name']}\n{d.get('summary','')}" for d in all_docs if d.get("summary")
-    )
-
-    # · RAG ciblé : passages les plus proches de la question
-    rag_context = ""
-    if all_docs and req.question.strip():
-        chunks = get_text_chunks("\n".join(d["content"] for d in all_docs))
-        vs = build_vectorstore_from_texts(chunks)
-        rag_context = "\n\n".join(search_documents(vs, req.question, k=4))
-
-    base_sys = ""
-    if instr:         base_sys += f"Project instructions:\n{instr}\n\n"
-    if doc_summaries: base_sys += f"Document overviews:\n{doc_summaries}\n\n"
-    if rag_context:   base_sys += f"Context passages:\n{rag_context}"
-
-    # ——— prompt final + appel LLM ————————————————————————
-    prompt = _build_prompt(conv, req.question, base_sys)
     answer = azure_llm_chat(prompt, model="GPT 4o")
-    logger.debug("LLM answer len=%d chars", len(answer))
 
     conv["messages"].append({"role": "assistant", "content": answer})
     update_conversation(conv)
-    return {"answer": answer, "conversationId": conv["id"]}
 
-# ──────────────────────────────────────────────────────────── Sélection modèle
+    headers = {"x-conversation-id": conv["id"]}
+    return JSONResponse({"answer": answer, "conversationId": conv["id"]}, headers=headers)
+
+# ───────────────────────────── /chat/stream  (StreamingResponse)
+@router.post("/chat/stream")
+def chat_stream(req: ChatRequest, user: dict = Depends(get_current_user)):
+    uid = user["entra_oid"]
+    conv, prompt = _prepare_conversation(req, uid)
+
+    def gen():
+        buffer = ""
+        try:
+            for delta in azure_llm_chat_stream(prompt, model="GPT 4o"):
+                buffer += delta
+                yield delta
+            # fin : on sauve le message bot
+            conv["messages"].append({"role": "assistant", "content": buffer})
+            update_conversation(conv)
+        except Exception as exc:
+            logger.exception("stream error")
+            yield f"\n[ERREUR] {exc}\n"
+
+    return StreamingResponse(
+        gen(),
+        media_type="text/plain",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+            "x-conversation-id": conv["id"],        # ← très important
+        },
+    )
+
+# ───────────────────────────── modèle sélectionné (optionnel)
 @router.post("/select-model")
 def select_model(sel: ModelSelection, user: dict = Depends(get_current_user)):
     logger.info("Model sélectionné par %s : %s", user["entra_oid"], sel.modelId)
     return {"message": "Modèle reçu", "modelId": sel.modelId}
 
-# ─────────────────────────────────────────────────────────── Upload documents
+# ───────────────────────────── Upload de documents (inchangé)
 @router.post("/docs/upload")
 async def upload_documents(
     files: List[UploadFile] = File(...),
@@ -259,8 +292,7 @@ async def upload_documents(
 
     for file in files:
         data = await file.read()
-        name = file.filename
-        low  = name.lower()
+        name, low = file.filename, file.filename.lower()
         if low.endswith(".pdf"):
             text = parse_pdf(data)
         elif low.endswith(".docx"):
@@ -272,7 +304,7 @@ async def upload_documents(
         else:
             text = ""
 
-        summary = summarize_text(text)      # ⬅️ génère l’aperçu
+        summary = summarize_text(text)
         uploaded_docs.append({"name": name, "content": text, "summary": summary})
 
     if conversationId:
@@ -280,26 +312,17 @@ async def upload_documents(
         if not conv:
             raise HTTPException(404, "Conversation non trouvée")
         conv["documents"] = conv.get("documents", []) + uploaded_docs
-        conv["type"] = "doc"
+        conv.setdefault("type", "doc")
     else:
         conv = create_conversation(uid, "", conversation_type="doc")
         conv["documents"] = uploaded_docs
         conv["messages"] = []
 
-    conv["messages"].append(
-        {
-            "role": "user",
-            "content": "",
-            "attachments": [
-                {"name": d["name"], "type": d["name"].split(".")[-1]} for d in uploaded_docs
-            ],
-        }
-    )
     update_conversation(conv)
     logger.debug("Docs ajoutés à conv %s", conv["id"])
     return {"conversationId": conv["id"], "documents": uploaded_docs}
 
-# ─────────────────────────────────────────────────────────────────── Projets
+# ───────────────────────────────────────────────────────────────── Projets
 @router.post("/projects", status_code=201)
 def create_new_project(project: ProjectRequest, user: dict = Depends(get_current_user)):
     logger.info("Création projet '%s' par %s", project.name, user["entra_oid"])

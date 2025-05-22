@@ -1,5 +1,5 @@
 import { authHeaders } from "./auth";
-/* --------- petite classe pour remonter le status HTTP --------- */
+/* --------  Gestion d’erreurs HTTP -------- */
 export class ApiError extends Error {
     status;
     constructor(status, message) {
@@ -8,7 +8,9 @@ export class ApiError extends Error {
     }
 }
 const apiUrl = import.meta.env.VITE_API_URL;
-/* ---------- listes & suppression ---------- */
+/* ============================================================= */
+/*  LISTES / CRUD                                                 */
+/* ============================================================= */
 export const getConversations = async () => {
     const r = await fetch(`${apiUrl}/api/conversations`, { headers: authHeaders() });
     if (!r.ok)
@@ -23,7 +25,6 @@ export const deleteConversation = async (id) => {
     if (!r.ok)
         throw new ApiError(r.status, "Erreur suppression conv");
 };
-/* ----- conversations d’un projet ----- */
 export const getConversationsForProject = async (projectId) => {
     const r = await fetch(`${apiUrl}/api/conversations?projectId=${projectId}`, {
         headers: authHeaders(),
@@ -33,26 +34,17 @@ export const getConversationsForProject = async (projectId) => {
     const groups = (await r.json());
     return Object.values(groups).flat().filter((c) => c.project_id);
 };
-/* ---------- chat ---------- */
-export const askQuestion = async (question, conversationId, conversationType, instructions) => {
-    const payload = { question };
-    if (conversationId)
-        payload.conversationId = conversationId;
-    if (conversationType)
-        payload.conversationType = conversationType;
-    if (instructions)
-        payload.instructions = instructions;
-    const r = await fetch(`${apiUrl}/api/chat`, {
-        method: "POST",
-        headers: authHeaders({ "Content-Type": "application/json" }),
-        body: JSON.stringify(payload),
+export const getMessages = async (convId) => {
+    const r = await fetch(`${apiUrl}/api/conversations/${convId}/messages`, {
+        headers: authHeaders(),
     });
-    if (!r.ok) {
-        const txt = await r.text();
-        throw new ApiError(r.status, txt || "Erreur LLM");
-    }
-    return (await r.json()).answer;
+    if (!r.ok)
+        throw new ApiError(r.status, "Erreur messages");
+    return r.json();
 };
+/* ============================================================= */
+/*  CRÉATION DE CONVERSATION (POST /chat)                         */
+/* ============================================================= */
 export const createConversation = async (initialMsg, conversationType = "chat", projectId, instructions) => {
     const payload = { question: initialMsg };
     if (conversationType)
@@ -72,11 +64,62 @@ export const createConversation = async (initialMsg, conversationType = "chat", 
     }
     return r.json();
 };
-export const getMessages = async (convId) => {
-    const r = await fetch(`${apiUrl}/api/conversations/${convId}/messages`, {
-        headers: authHeaders(),
+/* ============================================================= */
+/*  RÉPONSE COMPLÈTE (legacy)                                     */
+/* ============================================================= */
+export const askQuestion = async (question, conversationId, conversationType = "chat", instructions) => {
+    const payload = { question };
+    if (conversationId)
+        payload.conversationId = conversationId;
+    if (conversationType)
+        payload.conversationType = conversationType;
+    if (instructions)
+        payload.instructions = instructions;
+    const r = await fetch(`${apiUrl}/api/chat`, {
+        method: "POST",
+        headers: authHeaders({ "Content-Type": "application/json" }),
+        body: JSON.stringify(payload),
     });
-    if (!r.ok)
-        throw new ApiError(r.status, "Erreur messages");
-    return r.json();
+    if (!r.ok) {
+        const txt = await r.text();
+        throw new ApiError(r.status, txt || "Erreur LLM");
+    }
+    return (await r.json()).answer;
 };
+export function askQuestionStream({ question, conversationId, conversationType = "chat", instructions, }, { onDelta, onDone, onError, onConvId }) {
+    const ctrl = new AbortController();
+    const payload = { question };
+    if (conversationId)
+        payload.conversationId = conversationId;
+    if (conversationType)
+        payload.conversationType = conversationType;
+    if (instructions)
+        payload.instructions = instructions;
+    fetch(`${apiUrl}/api/chat/stream`, {
+        method: "POST",
+        headers: authHeaders({ "Content-Type": "application/json" }),
+        body: JSON.stringify(payload),
+        signal: ctrl.signal,
+    })
+        .then(async (r) => {
+        if (!r.ok)
+            throw new ApiError(r.status, await r.text());
+        /* --- conversation ID reçu dès le 1er token --- */
+        const newId = r.headers.get("x-conversation-id") || undefined;
+        if (newId && onConvId)
+            onConvId(newId);
+        const reader = r.body.getReader();
+        const decoder = new TextDecoder();
+        while (true) {
+            const { value, done } = await reader.read();
+            if (done)
+                break;
+            onDelta(decoder.decode(value));
+        }
+        onDone();
+    })
+        .catch(onError);
+    return { cancel: () => ctrl.abort() };
+}
+/* Helper simplifié pour autres écrans */
+export const askQuestionAsStream = (question, conversationId, conversationType, instructions, cb) => askQuestionStream({ question, conversationId, conversationType, instructions }, cb);

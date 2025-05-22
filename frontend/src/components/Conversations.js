@@ -6,21 +6,22 @@ import "./Conversations.css";
 const Conversations = () => {
     const [groups, setGroups] = useState({});
     const [error, setError] = useState("");
-    const [toDelete, setToDelete] = useState(null); // id à confirmer
+    const [toDelete, setToDelete] = useState(null);
     const navigate = useNavigate();
     const location = useLocation();
     const currentConvId = location.pathname.startsWith("/conversation/")
         ? location.pathname.split("/")[2]
         : null;
-    /* ------------------- chargement liste ---------------------------- */
+    /* ─────────── charge la liste depuis l’API ─────────── */
     const fetchConvs = async () => {
         try {
             const data = await getConversations();
+            /* on élimine les convs liées à un projet pour cette liste “générale” */
             const clean = {};
-            Object.entries(data).forEach(([g, lst]) => {
-                const l = lst.filter((c) => !c.project_id);
+            Object.entries(data).forEach(([grp, lst]) => {
+                const l = lst.filter(c => !c.project_id);
                 if (l.length)
-                    clean[g] = l;
+                    clean[grp] = l;
             });
             setGroups(clean);
         }
@@ -28,18 +29,19 @@ const Conversations = () => {
             setError("Erreur chargement conversations");
         }
     };
+    /* ─────────── listeners (création + update) ─────────── */
     useEffect(() => {
         fetchConvs();
-        const id = setInterval(fetchConvs, 3_000);
-        /* + rafraîchissement instantané quand ChatApp crée un nouveau chat */
         const onNew = () => fetchConvs();
+        const onUpdate = () => fetchConvs();
         window.addEventListener("conversationCreated", onNew);
+        window.addEventListener("conversationUpdated", onUpdate);
         return () => {
-            clearInterval(id);
             window.removeEventListener("conversationCreated", onNew);
+            window.removeEventListener("conversationUpdated", onUpdate);
         };
     }, []);
-    /* ------------------- suppression + redirection ------------------- */
+    /* ─────────── suppression + redirection ─────────── */
     const confirmDelete = (id) => setToDelete(id);
     const reallyDelete = async () => {
         if (!toDelete)
@@ -57,7 +59,7 @@ const Conversations = () => {
         }
         setToDelete(null);
     };
-    /* ------------------- rendu --------------------------------------- */
+    /* ─────────── rendu ─────────── */
     if (error)
         return React.createElement("div", null, error);
     if (Object.keys(groups).length === 0)
@@ -66,9 +68,9 @@ const Conversations = () => {
     return (React.createElement(React.Fragment, null,
         Object.entries(groups).map(([grp, convs]) => (React.createElement("div", { key: grp },
             React.createElement("h4", null, grp),
-            React.createElement("ul", { style: { listStyle: "none", padding: 0, margin: 0 } }, convs.map((c) => (React.createElement("li", { key: c.id, className: `sidebar-list-item ${c.id === currentConvId ? "active" : ""}`, onClick: () => navigate(`/conversation/${c.id}`) },
+            React.createElement("ul", { style: { listStyle: "none", padding: 0, margin: 0 } }, convs.map(c => (React.createElement("li", { key: c.id, className: `sidebar-list-item ${c.id === currentConvId ? "active" : ""}`, onClick: () => navigate(`/conversation/${c.id}`) },
                 React.createElement("span", null, trunc(c.title)),
-                React.createElement("button", { className: "delete-btn", onClick: (e) => {
+                React.createElement("button", { className: "delete-btn", onClick: e => {
                         e.stopPropagation();
                         confirmDelete(c.id);
                     } }, "\u2013")))))))),

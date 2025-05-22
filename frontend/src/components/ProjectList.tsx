@@ -17,13 +17,14 @@ type DelTarget =
   | null;
 
 const ProjectList: React.FC<Props> = ({ onCreateProject }) => {
-  const [projects, setProjects] = useState<any[]>([]);
-  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
-  const [convs, setConvs] = useState<Record<string, any[]>>({});
-  const [toDelete, setToDelete] = useState<DelTarget>(null);
+  /* ─────────── state ─────────── */
+  const [projects,  setProjects]  = useState<any[]>([]);
+  const [expanded,  setExpanded]  = useState<Record<string, boolean>>({});
+  const [convs,     setConvs]     = useState<Record<string, any[]>>({});
+  const [toDelete,  setToDelete]  = useState<DelTarget>(null);
 
-  const navigate = useNavigate();
-  const location = useLocation();
+  const navigate   = useNavigate();
+  const location   = useLocation();
   const currentConvId = location.pathname.startsWith("/conversation/")
     ? location.pathname.split("/")[2]
     : null;
@@ -31,7 +32,7 @@ const ProjectList: React.FC<Props> = ({ onCreateProject }) => {
     ? location.pathname.split("/")[2]
     : null;
 
-  /* ---------- chargement projets ---------- */
+  /* ─────────── chargement projets ─────────── */
   const loadProjects = async () => {
     try {
       setProjects(await getProjects());
@@ -41,12 +42,10 @@ const ProjectList: React.FC<Props> = ({ onCreateProject }) => {
   };
   useEffect(() => { loadProjects(); }, []);
 
-  /* ---------- évènements globaux ---------- */
+  /* ─────────── listeners globaux ─────────── */
   useEffect(() => {
-    const onProj = () => loadProjects();
-    window.addEventListener("projectCreated", onProj);
-
-    const onConv = (e: any) => {
+    const onProj   = () => loadProjects();
+    const onConv   = (e: any) => {
       const { projectId, conversation } = e.detail || {};
       if (!projectId || !conversation) return;
       setExpanded(p => ({ ...p, [projectId]: true }));
@@ -56,22 +55,30 @@ const ProjectList: React.FC<Props> = ({ onCreateProject }) => {
         return { ...p, [projectId]: [conversation, ...list] };
       });
     };
+    const onUpdate = () => {
+      /* un titre ou message a changé → recharger si la conv appartient à un projet */
+      Object.keys(convs).forEach(pid => ensureConvsLoaded(pid));
+    };
+
+    window.addEventListener("projectCreated",     onProj);
     window.addEventListener("conversationCreated", onConv);
+    window.addEventListener("conversationUpdated", onUpdate);
 
     return () => {
-      window.removeEventListener("projectCreated", onProj);
+      window.removeEventListener("projectCreated",     onProj);
       window.removeEventListener("conversationCreated", onConv);
+      window.removeEventListener("conversationUpdated", onUpdate);
     };
-  }, []);
+  }, [convs]);
 
-  /* ---------- helpers ---------- */
+  /* ─────────── helpers ─────────── */
   const ensureConvsLoaded = async (projId: string) => {
-    if (convs[projId]) return;                 // déjà chargées
+    if (convs[projId]) return;
     try {
-      const list = await getConversationsForProject(projId); // ⬅️ fetch
-      setConvs(prev => ({ ...prev, [projId]: list }));       // ⬅️ set sans await
+      const list = await getConversationsForProject(projId);
+      setConvs(prev => ({ ...prev, [projId]: list }));
     } catch {
-      console.error("Err convs projet");
+      console.error("Erreur convs projet");
     }
   };
 
@@ -81,7 +88,7 @@ const ProjectList: React.FC<Props> = ({ onCreateProject }) => {
     navigate(`/projects/${id}`);
   };
 
-  /* ---------- suppression (confirm + action) ---------- */
+  /* ─────────── suppression ─────────── */
   const doDelete = async () => {
     if (!toDelete) return;
     try {
@@ -109,7 +116,7 @@ const ProjectList: React.FC<Props> = ({ onCreateProject }) => {
     setToDelete(null);
   };
 
-  /* ---------- rendu ---------- */
+  /* ─────────── rendu ─────────── */
   if (projects.length === 0)
     return (
       <div
@@ -125,7 +132,7 @@ const ProjectList: React.FC<Props> = ({ onCreateProject }) => {
       <ul style={{ listStyle:"none",padding:0,margin:0 }}>
         {projects.map(p => (
           <li key={p.id}>
-            {/* --- ligne projet --- */}
+            {/* —— ligne projet —— */}
             <div
               className={`sidebar-project-row ${currentProjId === p.id ? "active" : ""}`}
               onClick={() => openProject(p.id)}
@@ -142,7 +149,7 @@ const ProjectList: React.FC<Props> = ({ onCreateProject }) => {
               >–</button>
             </div>
 
-            {/* --- sous-conversations --- */}
+            {/* —— sous-conversations —— */}
             {expanded[p.id] && (
               <ul style={{ listStyle:"none",paddingLeft:24,marginBottom:6 }}>
                 {(convs[p.id] || []).map(c => (
@@ -172,7 +179,7 @@ const ProjectList: React.FC<Props> = ({ onCreateProject }) => {
         ))}
       </ul>
 
-      {/* --- modal confirmation --- */}
+      {/* —— modal confirmation —— */}
       <ConfirmModal
         open={!!toDelete}
         title="Supprimer ?"

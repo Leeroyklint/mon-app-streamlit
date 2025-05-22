@@ -10,14 +10,11 @@ import wordIcon  from "../assets/word_icone.png";
 import excelIcon from "../assets/csv_icone.png";
 import txtIcon   from "../assets/txt_icone.png";
 
-/* ------------------------------------------------------------------ */
-/* Typage très souple : rien n’est obligatoire ----------------------- */
 interface MarkdownCodeProps extends React.HTMLAttributes<HTMLElement> {
   inline?: boolean;
   className?: string;
-  children?: React.ReactNode;          // ⬅️ optionnel
+  children?: React.ReactNode;
 }
-/* ------------------------------------------------------------------ */
 
 const getIcon = (filename: string) => {
   const ext = filename.split(".").pop()?.toLowerCase() ?? "";
@@ -30,8 +27,7 @@ const getIcon = (filename: string) => {
   return { src: wordIcon, alt: "Fichier" };
 };
 
-/* ------------------------------------------------------------------ */
-/* Composant <code> transmis à ReactMarkdown                          */
+/* ------- composant <code> passé à ReactMarkdown ----------------- */
 const MarkdownCode: React.FC<MarkdownCodeProps> = ({
   inline,
   className,
@@ -45,25 +41,36 @@ const MarkdownCode: React.FC<MarkdownCodeProps> = ({
       </code>
     );
   }
-  return (
-    <CodeBlock className={className}>
-      {children}
-    </CodeBlock>
-  );
+  return <CodeBlock className={className}>{children}</CodeBlock>;
 };
-/* ------------------------------------------------------------------ */
 
-interface Props { messages: Message[]; }
+interface Props {
+  messages:      Message[];
+  streaming:     boolean;
+  waitingForDoc: boolean;
+  nbDocs:        number;
+}
 
-const ChatMessages: React.FC<Props> = ({ messages }) => {
+const ChatMessages: React.FC<Props> = ({
+  messages,
+  streaming,
+  waitingForDoc,
+  nbDocs,
+}) => {
   const endRef = useRef<HTMLDivElement>(null);
-  useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
+  useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); },
+            [messages, waitingForDoc, streaming]);
+
+  /* “Réflexion…” tant que le dernier message n’est pas du bot */
+  const last       = messages[messages.length - 1];
+  const noBotYet   = streaming && (!last || last.sender !== "bot");
 
   return (
     <div className="chat-messages">
-      {messages.map((m) => {
+      {messages.map((m, idx) => {
         const isUser    = m.sender === "user";
         const bubbleCls = `message-item ${isUser ? "message-user" : "message-bot"}`;
+        const isLastBot = !isUser && idx === messages.length - 1;
 
         return (
           <div key={m.id} className={bubbleCls}>
@@ -95,16 +102,33 @@ const ChatMessages: React.FC<Props> = ({ messages }) => {
                 ) : (
                   <ReactMarkdown
                     remarkPlugins={[remarkGfm]}
-                    /*  ⬇️ on caste pour coller au type attendu --------- */
                     components={{ code: MarkdownCode as React.ComponentType<any> }}
                   >
                     {m.text}
                   </ReactMarkdown>
                 ))}
+
+              {/* === spinner bot si stream pas encore reçu --------------- */}
+              {isLastBot && streaming && !m.text && (
+                <span className="bot-spinner" />
+              )}
             </div>
           </div>
         );
       })}
+
+      {/* ---- placeholder “Réflexion…” -------------------------------- */}
+      {noBotYet && !waitingForDoc && (
+        <div className="thinking-placeholder">Réflexion…</div>
+      )}
+
+      {/* ---- placeholder “Chargement du/des document(s)… ” ----------- */}
+      {waitingForDoc && (
+        <div className="thinking-placeholder">
+          {nbDocs > 1 ? "Chargement des documents…" : "Chargement du document…"}
+        </div>
+      )}
+
       <div ref={endRef} />
     </div>
   );
