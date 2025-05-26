@@ -102,16 +102,16 @@ const ChatMessages:React.FC<Props> = ({
               {/* -------- Texte -------- */}
               {m.text && (
                 isUser
-                  ? <pre className="message-text">{m.text}</pre>
-                  : isRawCode(m.text)
-                      ? <pre className="message-code">{m.text}</pre>
-                      : <ReactMarkdown
-                          remarkPlugins={[remarkGfm]}
-                          components={{ code:MarkdownCode }}
+                    ? <pre className="message-text">{m.text}</pre>
+                    : isRawCode(m.text)
+                        ? <CodeBlock className="language-html">{m.text}</CodeBlock>  
+                        : <ReactMarkdown
+                            remarkPlugins={[remarkGfm]}
+                            components={{ code:MarkdownCode }}
                         >
-                          {m.text}
+                            {m.text}
                         </ReactMarkdown>
-              )}
+                )}
 
               {isLastBot && streaming && !m.text && <span className="bot-spinner" />}
             </div>

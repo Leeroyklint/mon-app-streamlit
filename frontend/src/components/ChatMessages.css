@@ -8,6 +8,8 @@
   overflow-y:auto;
   overscroll-behavior:contain;
   padding:8px;
+  background:var(--bg);           /* <-- suit le thème */
+  color:var(--text);
 }
 
 /* ------------------------------------------------ alignements */
@@ -23,13 +25,13 @@
   gap:8px;
 }
 .message-user .message-bubble{
-  background:#e6e6e6;
+  background:var(--bubble-user);
   border-radius:12px;
   padding:8px 12px;
   word-break:break-word;
 }
 .message-bot .message-bubble{
-  background:transparent;
+  background:var(--bubble-bot);
   padding:0;
 }
 
@@ -42,57 +44,31 @@
 .attachment{
   display:flex;
   align-items:center;
-  background:#f2f2f2;
+  background:var(--panel);
   border-radius:16px;
   padding:6px 8px;
 }
 
-/* icône générique (pdf, doc…) */
-.attachment-icon{
-  width:20px;
-  height:20px;
-  object-fit:contain;
-  margin-right:8px;
-}
-
-/* miniature image reçue */
+.attachment-icon,
 .attachment-image{
-  width:20px;
-  height:20px;
-  object-fit:cover;
-  border-radius:4px;
-  margin-right:8px;
+  width:20px;height:20px;object-fit:contain;margin-right:8px;
 }
+.attachment-image{object-fit:cover;border-radius:4px;}
 
-.attachment-info{
-  display:flex;
-  flex-direction:column;
-}
-
-/* ellipsis si nom trop long */
+.attachment-info{display:flex;flex-direction:column;}
 .attachment-name{
-  font-weight:500;
-  max-width:140px;
-  overflow:hidden;
-  text-overflow:ellipsis;
-  white-space:nowrap;
+  font-weight:500;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
 }
-.attachment-type{
-  font-size:.8em;
-  color:#666;
-}
+.attachment-type{font-size:.8em;color:var(--text-dim);}
 
 /* ------------------------------------------------ texte utilisateur */
-.message-text{
-  white-space:pre-wrap;
-  font-family:inherit;
-  font-size:14px;
-}
+.message-text{white-space:pre-wrap;font-family:inherit;font-size:14px;color:var(--text);}
 
-/* ------------------------------------------------ blocs de code */
-.code-block{
-  background:#1e1e1e;
-  color:#eee;
+/* ------------------------------------------------ blocs de code (NOUVEAU) */
+.code-block,
+.message-code{
+  background:var(--code-bg);   /* palette ! */
+  color:var(--code-fg);
   border-radius:8px;
   margin:6px 0;
   overflow:hidden;
@@ -100,59 +76,29 @@
   font-size:14px;
 }
 .code-block-header{
-  display:flex;
-  justify-content:space-between;
-  align-items:center;
-  background:#2d2d2d;
+  display:flex;justify-content:space-between;align-items:center;
+  background:rgba(0,0,0,.05);
   padding:4px 8px;
 }
-.code-lang{
-  text-transform:uppercase;
-  font-size:12px;
-  letter-spacing:.3px;
-}
+.code-lang{text-transform:uppercase;font-size:12px;letter-spacing:.3px;}
 .copy-btn{
-  background:none;
-  border:none;
-  color:#ddd;
-  font-size:12px;
-  cursor:pointer;
+  background:none;border:none;color:var(--text-dim);font-size:12px;cursor:pointer;
 }
-.copy-btn:hover{color:#fff;}
-.code-block pre{
-  margin:0;
-  padding:12px;
-  overflow-x:auto;
-}
+.copy-btn:hover{color:var(--text);}
+.code-block pre,
+.message-code{margin:0;padding:12px;overflow-x:auto;}
 
 /* ------------------------------------------------ spinner bot */
 .bot-spinner{
-  width:14px;
-  height:14px;
-  border:3px solid #ddd;
-  border-top-color:#666;
-  border-radius:50%;
-  animation:spin .8s linear infinite;
+  width:14px;height:14px;border:3px solid var(--panel);border-top-color:var(--text-dim);
+  border-radius:50%;animation:spin .8s linear infinite;
 }
 @keyframes spin{to{transform:rotate(360deg)}}
 
 /* ------------------------------------------------ états “en réflexion / upload” */
 .thinking-placeholder{
-  text-align:center;
-  font-style:italic;
-  color:#6b6b6b;
-  margin:24px 0;
+  text-align:center;font-style:italic;color:var(--text-dim);margin:24px 0;
 }
 
-.chat-img {
-  max-width: 220px;
-  border-radius: 8px;
-  margin-top: 4px;
-}
-
-.file-link {
-  display: inline-block;
-}
-
-.message-code     { background:#111; color:#eee; padding:12px; border-radius:6px;
-                    overflow:auto; font-family:monospace; font-size:14px; }
+.chat-img{max-width:220px;border-radius:8px;margin-top:4px;}
+.file-link{display:inline-block;}

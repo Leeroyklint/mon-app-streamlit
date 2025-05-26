@@ -1,0 +1,34 @@
+:root{
+  /* Texte & fond généraux */
+  --bg:#ffffff;
+  --text:#111;
+  --text-dim:#555;
+
+  /* Panneaux & bordures */
+  --panel:#f8f9fa;
+  --border:#d0d7de;
+
+  /* Bulles */
+  --bubble-user:#e6e6e6;
+  --bubble-bot:transparent;
+
+  /* Code blocks */
+  --code-bg:#f6f8fa;
+  --code-fg:#0d1117;
+}
+
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#0d1117;
+    --text:#e6edf3;
+    --text-dim:#8b949e;
+
+    --panel:#161b22;
+    --border:#30363d;
+
+    --bubble-user:#333a42;
+
+    --code-bg:#1e1e1e;
+    --code-fg:#eee;
+  }
+}

@@ -54,7 +54,7 @@ const ChatMessages = ({ messages, streaming, waitingForDoc, generating, nbDocs, 
                     m.text && (isUser
                         ? React.createElement("pre", { className: "message-text" }, m.text)
                         : isRawCode(m.text)
-                            ? React.createElement("pre", { className: "message-code" }, m.text)
+                            ? React.createElement(CodeBlock, { className: "language-html" }, m.text)
                             : React.createElement(ReactMarkdown, { remarkPlugins: [remarkGfm], components: { code: MarkdownCode } }, m.text)),
                     isLastBot && streaming && !m.text && React.createElement("span", { className: "bot-spinner" }))));
         }),

@@ -111,6 +111,11 @@ def _build_prompt(
     if base_sys:
         prompt.append({"role": "system", "content": base_sys.strip()})
 
+    prompt.insert(0,{
+        "role":"system",
+        "content":"Si ta réponse contient du code, encadre-le **obligatoirement** avec ```lang … ```."
+    })
+
     # ─── 2. (optionnel) indiquer explicitement le modèle choisi ──
     if model_name:
         prompt.append({
