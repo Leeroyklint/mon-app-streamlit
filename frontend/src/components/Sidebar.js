@@ -5,7 +5,7 @@ import "./Sidebar.css";
 import Conversations from "./Conversations";
 import ProjectList from "./ProjectList";
 import { createProject } from "../services/projectService";
-import klintIcon from "../assets/klint_icone.png"; // Importation de l'icône
+import editIcon from "../assets/edit.png"; // Importation de l'icône
 const Sidebar = ({ userName }) => {
     const navigate = useNavigate();
     /* ---------- état modal ---------- */
@@ -44,9 +44,9 @@ const Sidebar = ({ userName }) => {
                     userName)),
             React.createElement("div", { className: "sidebar-section" },
                 React.createElement("button", { className: "sidebar-button", onClick: handleNewChat },
-                    React.createElement("img", { src: klintIcon, alt: "Nouveau Chat Icon", style: {
-                            width: "30px",
-                            height: "30px",
+                    React.createElement("img", { src: editIcon, alt: "Nouveau Chat Icon", style: {
+                            width: "18px",
+                            height: "18px",
                             marginRight: "5px",
                             verticalAlign: "middle",
                         } }),

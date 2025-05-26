@@ -3,6 +3,8 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { getProjects, deleteProject } from "../services/projectService";
 import { getConversationsForProject, deleteConversation, } from "../services/conversationService";
 import ConfirmModal from "./ConfirmModal";
+import folderIcon from "../assets/folder.png"; // Importation de l'icône
+import "./ProjectList.css";
 const ProjectList = ({ onCreateProject }) => {
     /* ─────────── state ─────────── */
     const [projects, setProjects] = useState([]);
@@ -104,9 +106,21 @@ const ProjectList = ({ onCreateProject }) => {
     };
     /* ─────────── rendu ─────────── */
     if (projects.length === 0)
-        return (React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 6, cursor: "pointer", padding: "6px 4px" }, onClick: onCreateProject },
-            React.createElement("span", { style: { fontSize: 18 } }, "\uD83D\uDCC2"),
-            " Nouveau projet"));
+        return (
+        // <div
+        //   style={{ display:"flex",alignItems:"center",gap:6,cursor:"pointer",padding:"6px 4px" }}
+        //   onClick={onCreateProject}
+        // >
+        //   <span style={{ fontSize:18 }}>📂</span> Nouveau projet
+        // </div>
+        React.createElement("button", { className: "sidebar-button", onClick: onCreateProject },
+            React.createElement("img", { src: folderIcon, alt: "Nouveau Chat Icon", style: {
+                    width: "18px",
+                    height: "18px",
+                    marginRight: "5px",
+                    verticalAlign: "middle",
+                } }),
+            "Nouveau projet"));
     return (React.createElement(React.Fragment, null,
         React.createElement("ul", { style: { listStyle: "none", padding: 0, margin: 0 } }, projects.map(p => (React.createElement("li", { key: p.id },
             React.createElement("div", { className: `sidebar-project-row ${currentProjId === p.id ? "active" : ""}`, onClick: () => openProject(p.id) },

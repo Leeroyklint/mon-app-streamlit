@@ -6,6 +6,8 @@ import {
   deleteConversation,
 } from "../services/conversationService";
 import ConfirmModal from "./ConfirmModal";
+import folderIcon from "../assets/folder.png"; // Importation de l'icône
+import "./ProjectList.css";
 
 interface Props {
   onCreateProject: () => void;
@@ -119,12 +121,27 @@ const ProjectList: React.FC<Props> = ({ onCreateProject }) => {
   /* ─────────── rendu ─────────── */
   if (projects.length === 0)
     return (
-      <div
-        style={{ display:"flex",alignItems:"center",gap:6,cursor:"pointer",padding:"6px 4px" }}
-        onClick={onCreateProject}
-      >
-        <span style={{ fontSize:18 }}>📂</span> Nouveau projet
-      </div>
+      // <div
+      //   style={{ display:"flex",alignItems:"center",gap:6,cursor:"pointer",padding:"6px 4px" }}
+      //   onClick={onCreateProject}
+      // >
+      //   <span style={{ fontSize:18 }}>📂</span> Nouveau projet
+      // </div>
+      <button 
+        className="sidebar-button" 
+        onClick={onCreateProject}>
+        <img
+          src={folderIcon}
+          alt="Nouveau Chat Icon"
+          style={{
+            width: "18px",
+            height: "18px",
+            marginRight: "5px",
+            verticalAlign: "middle",
+          }}
+        />
+        Nouveau projet
+      </button>
     );
 
   return (
