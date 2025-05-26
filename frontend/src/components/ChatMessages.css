@@ -1,15 +1,8 @@
 /* ------------------------------------------------ container */
 .chat-messages{
-  position:fixed;
-  top:10%;
-  bottom:30%;
-  left:27%;
-  width:64%;
-  overflow-y:auto;
-  overscroll-behavior:contain;
-  padding:8px;
-  background:var(--bg);           /* <-- suit le thème */
-  color:var(--text);
+  position:fixed;top:10%;bottom:30%;left:27%;width:64%;
+  overflow-y:auto;overscroll-behavior:contain;padding:8px;
+  background:var(--bg);color:var(--text);
 }
 
 /* ------------------------------------------------ alignements */
@@ -18,75 +11,41 @@
 .message-bot{justify-content:flex-start;}
 
 /* ------------------------------------------------ bulles */
-.message-bubble{
-  max-width:100%;
-  display:flex;
-  flex-direction:column;
-  gap:8px;
-}
+.message-bubble{max-width:100%;display:flex;flex-direction:column;gap:8px;}
 .message-user .message-bubble{
-  background:var(--bubble-user);
-  border-radius:12px;
-  padding:8px 12px;
-  word-break:break-word;
+  background:var(--bubble-user);border-radius:12px;padding:8px 12px;word-break:break-word;
 }
-.message-bot .message-bubble{
-  background:var(--bubble-bot);
-  padding:0;
-}
+.message-bot .message-bubble{background:var(--bubble-bot);padding:0;}
 
 /* ------------------------------------------------ pièces-jointes */
-.message-attachments{
-  display:flex;
-  flex-direction:column;
-  gap:6px;
-}
+.message-attachments{display:flex;flex-direction:column;gap:6px;}
 .attachment{
-  display:flex;
-  align-items:center;
-  background:var(--panel);
-  border-radius:16px;
-  padding:6px 8px;
+  display:flex;align-items:center;background:var(--panel);
+  border-radius:16px;padding:6px 8px;
 }
-
-.attachment-icon,
-.attachment-image{
-  width:20px;height:20px;object-fit:contain;margin-right:8px;
-}
+.attachment-icon,.attachment-image{width:20px;height:20px;object-fit:contain;margin-right:8px;}
 .attachment-image{object-fit:cover;border-radius:4px;}
-
 .attachment-info{display:flex;flex-direction:column;}
-.attachment-name{
-  font-weight:500;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
-}
+.attachment-name{font-weight:500;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .attachment-type{font-size:.8em;color:var(--text-dim);}
 
 /* ------------------------------------------------ texte utilisateur */
 .message-text{white-space:pre-wrap;font-family:inherit;font-size:14px;color:var(--text);}
 
-/* ------------------------------------------------ blocs de code (NOUVEAU) */
-.code-block,
-.message-code{
-  background:var(--code-bg);   /* palette ! */
-  color:var(--code-fg);
-  border-radius:8px;
-  margin:6px 0;
-  overflow:hidden;
-  font-family:"Courier New",monospace;
-  font-size:14px;
+/* ------------------------------------------------ blocs de code */
+.code-block,.message-code{
+  background:var(--code-bg);color:var(--code-fg);
+  border-radius:8px;margin:6px 0;overflow:hidden;
+  font-family:"Courier New",monospace;font-size:14px;
 }
 .code-block-header{
   display:flex;justify-content:space-between;align-items:center;
-  background:rgba(0,0,0,.05);
-  padding:4px 8px;
+  background:rgba(0,0,0,.05);padding:4px 8px;
 }
 .code-lang{text-transform:uppercase;font-size:12px;letter-spacing:.3px;}
-.copy-btn{
-  background:none;border:none;color:var(--text-dim);font-size:12px;cursor:pointer;
-}
+.copy-btn{background:none;border:none;color:var(--text-dim);font-size:12px;cursor:pointer;}
 .copy-btn:hover{color:var(--text);}
-.code-block pre,
-.message-code{margin:0;padding:12px;overflow-x:auto;}
+.code-block pre,.message-code{margin:0;padding:12px;overflow-x:auto;}
 
 /* ------------------------------------------------ spinner bot */
 .bot-spinner{
@@ -96,9 +55,7 @@
 @keyframes spin{to{transform:rotate(360deg)}}
 
 /* ------------------------------------------------ états “en réflexion / upload” */
-.thinking-placeholder{
-  text-align:center;font-style:italic;color:var(--text-dim);margin:24px 0;
-}
+.thinking-placeholder{text-align:center;font-style:italic;color:var(--text-dim);margin:24px 0;}
 
 .chat-img{max-width:220px;border-radius:8px;margin-top:4px;}
 .file-link{display:inline-block;}

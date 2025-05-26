@@ -1,6 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import "./ChatInput.css";
-
 import pdfIcon   from "../assets/pdf_icone.png";
 import wordIcon  from "../assets/word_icone.png";
 import excelIcon from "../assets/csv_icone.png";

@@ -1,34 +1,44 @@
+/* ───────────────────────────────────────────────
+   Palette claire  (par défaut — style ChatGPT)
+   ─────────────────────────────────────────────── */
 :root{
-  /* Texte & fond généraux */
-  --bg:#ffffff;
-  --text:#111;
-  --text-dim:#555;
+  /* zones */
+  --bg:#ffffff;           /* fond global */
+  --panel:#f7f7f8;        /* panneaux, textarea, bulles user */
 
-  /* Panneaux & bordures */
-  --panel:#f8f9fa;
-  --border:#d0d7de;
+  /* texte */
+  --text:#0d0d0d;
+  --text-dim:#6b6b6b;
 
-  /* Bulles */
-  --bubble-user:#e6e6e6;
+  /* bulles */
+  --bubble-user: #f4f4f4;
   --bubble-bot:transparent;
 
-  /* Code blocks */
-  --code-bg:#f6f8fa;
-  --code-fg:#0d1117;
+  /* traits / contours */
+  --border:#e4e5e7;
+
+  /* code */
+  --code-bg:#f9f9f9;
+  --code-fg:#1e1e1e;
 }
 
+/* ───────────────────────────────────────────────
+   Palette sombre (media query = même ton ChatGPT)
+   ─────────────────────────────────────────────── */
 @media (prefers-color-scheme: dark){
   :root{
-    --bg:#0d1117;
-    --text:#e6edf3;
-    --text-dim:#8b949e;
+    --bg:#202123;
+    --panel:#2b2c2f;
 
-    --panel:#161b22;
-    --border:#30363d;
+    --text:#d1d5da;
+    --text-dim:#8e8f93;
 
-    --bubble-user:#333a42;
+    --bubble-user:#343541;      /* bulles gris/bleuté ChatGPT */
+    --bubble-bot:transparent;
 
-    --code-bg:#1e1e1e;
-    --code-fg:#eee;
+    --border:#3f4044;
+
+    --code-bg:#343541;
+    --code-fg:#e8e6e3;
   }
 }

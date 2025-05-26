@@ -1,8 +1,7 @@
 // src/components/AIModelSelector.tsx
 import React, { useEffect, useRef, useState } from "react";
-import { selectModel } from "../services/modelService";
+import { selectModel } from "../services/modelService"; 
 import "./AIModelSelector.css";
-
 export interface LlmModel {
   id: string;
   name: string;
