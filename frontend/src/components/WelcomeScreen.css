@@ -26,7 +26,7 @@
     font-weight:600;
     margin:0;
     text-align:center;
-    color:#111;
+    color:var(--text);
   }
   
   .welcome-input{
