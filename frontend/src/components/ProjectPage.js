@@ -6,6 +6,7 @@ import { askQuestionStream, createConversation, getMessages, getConversationsFor
 import { uploadProjectFiles, updateProjectInstructions, getProject, } from "../services/projectService";
 import { reserve } from "../services/rateLimiter";
 import "./ProjectPage.css";
+import { useModel } from "../contexts/ModelContext";
 const ProjectPage = () => {
     const { projectId } = useParams();
     const navigate = useNavigate();
@@ -23,6 +24,7 @@ const ProjectPage = () => {
     const [nbDocs, setNbDocs] = useState(0);
     const idRef = useRef(0);
     const streamRef = useRef(null);
+    const { modelId } = useModel();
     /* ---------- load project & chats ---------- */
     useEffect(() => {
         if (!projectId)
@@ -100,7 +102,13 @@ const ProjectPage = () => {
         let buffer = "";
         setStreaming(true);
         const launch = () => {
-            streamRef.current = askQuestionStream({ question: cleanMsg, conversationId: convId, conversationType: "project", instructions }, {
+            streamRef.current = askQuestionStream({
+                question: cleanMsg,
+                conversationId: convId,
+                conversationType: "project",
+                instructions,
+                modelId,
+            }, {
                 onDelta: d => {
                     buffer += d;
                     if (botId === undefined) {

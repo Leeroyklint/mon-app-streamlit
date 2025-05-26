@@ -222,6 +222,10 @@ def azure_llm_chat(messages: List[dict],
                 }
                 logger.info("LLM %s via %s (%s tok in/out)",
                             model, deployment, data.get("usage", {}))
+                logger.info(
+                    "LLM final=%s  deployment=%s  usage=%s",
+                    model, deployment, data.get("usage", {})
+                )
                 return data["choices"][0]["message"]["content"], headers_out
 
             except requests.HTTPError as exc:
@@ -306,8 +310,12 @@ def gpt4o_ocr(image_bytes: bytes, mime: str = "image/png") -> str:
             {"type": "image_url",
              "image_url": {"url": f"data:{mime};base64,{b64}"}}]}
     ]
-    txt, _ = azure_llm_chat(prompt, model="GPT 4o")
-    return txt.strip()
+    try:
+        txt, _ = azure_llm_chat(prompt, model="GPT 4o")
+        return txt.strip()
+    except Exception as exc:
+        logger.exception("Vision OCR failure")
+        raise HTTPException(502, "Erreur GPT-4o Vision") from exc
 
 
 # ╔════════════════════════════  DALL·E-3 génération  ══════════════════════╗
@@ -317,8 +325,8 @@ def dalle3_generate(prompt: str, size: str = "1024x1024") -> str:
     Variables requises dans .env :
       AZ_dall-e-3_API, AZ_dall-e-3_ENDPOINT  (configurées par l’utilisateur)
     """
-    api_key  = os.getenv("AZ_dall-e-3_API")
-    endpoint = os.getenv("AZ_dall-e-3_ENDPOINT")
+    api_key  = os.getenv("AZ_DALLE3_API_KEY")
+    endpoint = os.getenv("AZ_DALLE3_ENDPOINT")
     if not api_key or not endpoint:
         raise RuntimeError("Variables AZ_dall-e-3_API / AZ_dall-e-3_ENDPOINT manquantes")
 
@@ -326,5 +334,10 @@ def dalle3_generate(prompt: str, size: str = "1024x1024") -> str:
     r = requests.post(endpoint, headers={
                       "api-key": api_key, "Content-Type": "application/json"},
                       json=payload, timeout=60)
-    r.raise_for_status()
-    return r.json()["data"][0]["url"]
+    try:
+        r.raise_for_status()
+        return r.json()["data"][0]["url"]
+    except requests.HTTPError as exc:
+        msg = f"DALL·E error {r.status_code}: {r.text}"
+        logger.error(msg)
+        raise HTTPException(r.status_code, msg) from exc

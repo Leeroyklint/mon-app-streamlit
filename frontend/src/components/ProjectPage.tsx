@@ -16,6 +16,7 @@ import {
 import { reserve } from "../services/rateLimiter";
 import { Message, Attachment } from "../interfaces/interfaces";
 import "./ProjectPage.css";
+import { useModel } from "../contexts/ModelContext";
 
 const ProjectPage: React.FC = () => {
   const { projectId } = useParams<{ projectId: string }>();
@@ -37,6 +38,8 @@ const ProjectPage: React.FC = () => {
 
   const idRef     = useRef(0);
   const streamRef = useRef<{ cancel: () => void } | null>(null);
+
+  const { modelId } = useModel();
 
   /* ---------- load project & chats ---------- */
   useEffect(() => {
@@ -127,7 +130,13 @@ const ProjectPage: React.FC = () => {
 
     const launch = () => {
       streamRef.current = askQuestionStream(
-        { question: cleanMsg, conversationId: convId!, conversationType: "project", instructions },
+        {
+          question: cleanMsg,
+          conversationId: convId!,
+          conversationType: "project",
+          instructions,
+          modelId,
+        },
         {
           onDelta: d => {
             buffer += d;

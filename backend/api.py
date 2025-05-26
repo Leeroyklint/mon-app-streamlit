@@ -30,6 +30,7 @@ from backend.model import (
     azure_llm_chat, azure_llm_chat_stream,
     gpt4o_ocr, dalle3_generate,
 )
+from backend.model import RAW_MODELS, _requires_vision
 from backend.models import (
     parse_pdf, parse_docx, parse_txt, parse_excel,
     get_text_chunks, build_vectorstore_from_texts,
@@ -90,20 +91,48 @@ def _ensure_summary(conv: dict) -> None:
     update_conversation(conv)
 
 # ───────────────────────────── Prompt builder & helper
-def _build_prompt(conv: dict, question: str, base_sys: str) -> list[dict]:
+def _build_prompt(
+    conv: dict,
+    question: str,
+    base_sys: str,
+    model_name: str | None = None,        
+) -> list[dict]:
+    """
+    Construit la liste complète « messages » à envoyer au LLM.
+
+    - base_sys      : contexte système commun (instructions projet, RAG, etc.)
+    - model_name    : si présent, ajoute une consigne précisant le modèle à annoncer
+    """
     _ensure_summary(conv)
 
     prompt: list[dict] = []
+
+    # ─── 1. contexte  ─────────────────────────────────────────────
     if base_sys:
-        prompt.append({"role": "system", "content": base_sys})
+        prompt.append({"role": "system", "content": base_sys.strip()})
 
+    # ─── 2. (optionnel) indiquer explicitement le modèle choisi ──
+    if model_name:
+        prompt.append({
+            "role": "system",
+            "content": (
+                f"Tu es le modèle **{model_name}**. "
+                "Si l’utilisateur demande quel modèle tu es, "
+                "réponds exactement ce nom, sans autre précision."
+            )
+        })
+
+    # ─── 3. résumé de la conversation ────────────────────────────
     if conv.get("summary"):
-        prompt.append(
-            {"role": "system", "content": "Résumé de la conversation :\n" + conv["summary"]}
-        )
+        prompt.append({
+            "role": "system",
+            "content": "Résumé de la conversation :\n" + conv["summary"]
+        })
 
+    # ─── 4. historique + nouvelle question ───────────────────────
     prompt += conv.get("messages", [])[-KEEP_LAST:]
     prompt.append({"role": "user", "content": question})
+
     return prompt
 
 IMG_EXT = {"jpg","jpeg","png","gif","webp","bmp","svg"}
@@ -113,6 +142,9 @@ def _prepare_conversation(req, uid: str) -> Tuple[dict, Iterable[dict]]:
     Charge ou crée la conversation, ajoute le prompt utilisateur,
     construit le tableau complet « messages » à envoyer au LLM.
     """
+    # ── 1. modèle demandé (défaut GPT 4o) ───────────────────────────────
+    chosen_model = req.modelId or "GPT 4o"
+
     # ───── récup / création ─────────────────────────────────────────
     if req.conversationId:
         conv = get_conversation(uid, req.conversationId)
@@ -176,9 +208,9 @@ def _prepare_conversation(req, uid: str) -> Tuple[dict, Iterable[dict]]:
     if doc_summaries: base_sys += f"Document overviews:\n{doc_summaries}\n\n"
     if rag_context:   base_sys += f"Context passages:\n{rag_context}"
 
-    prompt = _build_prompt(conv, req.question, base_sys)
+    prompt = _build_prompt(conv, req.question, base_sys, model_name=chosen_model)
 
-    # ───── Vision : convertit le dernier prompt si images ───────────
+    # ── 4. Vision : convertit les attachments ----------------------------------
     last_msg = conv["messages"][-1]
     img_atts = [
         a for a in last_msg.get("attachments", [])
@@ -186,14 +218,18 @@ def _prepare_conversation(req, uid: str) -> Tuple[dict, Iterable[dict]]:
             or a["name"].split(".")[-1].lower() in IMG_EXT)
         and a.get("url")
     ]
-
     if img_atts:
         prompt[-1]["content"] = (
-            [{"type":"text","text":req.question}] +
-            [{"type":"image_url","image_url":{"url":a["url"]}} for a in img_atts]
+            [{"type": "text", "text": req.question}] +
+            [{"type": "image_url", "image_url": {"url": a["url"]}} for a in img_atts]
         )
 
-    return conv, prompt
+    # ── 5. 2-passes : si images + modèle ≠ 4o → GPT-4o d’abord ------------------
+    if _requires_vision(prompt) and chosen_model != "GPT 4o":
+        vision_txt, _ = azure_llm_chat(prompt, model="GPT 4o")
+        prompt[-1]["content"] = vision_txt  
+
+    return conv, prompt, chosen_model
 
 # ───────────────────────────── Schemas
 from pydantic import BaseModel
@@ -204,6 +240,7 @@ class ChatRequest(BaseModel):
     conversationType: Optional[str] = "chat"
     projectId: Optional[str] = None
     instructions: Optional[str] = ""
+    modelId: Optional[str] = None
 
 class ChatResponse(BaseModel):
     answer: str
@@ -218,6 +255,10 @@ class ProjectRequest(BaseModel):
 
 class ProjectUpdateRequest(BaseModel):
     instructions: Optional[str] = ""
+
+class ImageRequest(BaseModel):
+    prompt: str
+    size:   str | None = "1024x1024"
 
 # ───────────────────────────── Utilitaires dates → groupes
 def _group_by_date(convs: list[dict]) -> dict[str, list[dict]]:
@@ -266,22 +307,33 @@ async def ocr_image(
     return {"text": text}
 
 # ───────────────────────────── Génération image (DALL·E-3)
-@router.post("/images/generate")             # route utilisée par le front
-@router.post("/image/generate")              # compat ancien nom
-async def dalle_generate(req: Request):
-    data   = await req.json()
-    prompt = data.get("prompt","")
-    size   = data.get("size","1024x1024")
-    url    = dalle3_generate(prompt, size=size)
-    return {"url": url}
+@router.post("/images/generate")
+@router.post("/image/generate")   # alias rétro-compat
+def generate_image(
+    req: ImageRequest,
+    user: dict = Depends(get_current_user),
+):
+    """
+    Génère une image via le déploiement Azure DALL·E-3
+    et renvoie l’URL SAS.
+    """
+    logger.info("Image requested by %s – %s", user["entra_oid"], req.prompt[:60])
+    try:
+        url = dalle3_generate(req.prompt, size=req.size or "1024x1024")
+        return {"url": url}
+    except HTTPException as exc:       # levée dans dalle3_generate
+        raise exc
+    except Exception as exc:
+        logger.exception("Image generation failure")
+        raise HTTPException(500, "Erreur génération d’image") from exc
 
 # ───────────────────────────── /chat  (réponse complète)
 @router.post("/chat", response_model=ChatResponse)
 def chat_endpoint(req: ChatRequest, user: dict = Depends(get_current_user)):
     uid = user["entra_oid"]
-    conv, prompt = _prepare_conversation(req, uid)
+    conv, prompt, chosen = _prepare_conversation(req, uid)
 
-    answer, llm_headers = azure_llm_chat(prompt, model="GPT 4o")
+    answer, llm_headers   = azure_llm_chat(prompt, model=chosen)
 
     conv["messages"].append({"role": "assistant", "content": answer})
     update_conversation(conv)
@@ -293,9 +345,9 @@ def chat_endpoint(req: ChatRequest, user: dict = Depends(get_current_user)):
 @router.post("/chat/stream")
 def chat_stream(req: ChatRequest, user: dict = Depends(get_current_user)):
     uid = user["entra_oid"]
-    conv, prompt = _prepare_conversation(req, uid)
+    conv, prompt, chosen = _prepare_conversation(req, uid)
 
-    gen, llm_headers = azure_llm_chat_stream(prompt, model="GPT 4o")
+    gen, llm_headers = azure_llm_chat_stream(prompt, model=chosen)
 
     def wrapper():
         buffer = ""
@@ -431,3 +483,8 @@ async def upload_project_files(
     update_project(proj)
     logger.debug("Ajout de %d fichiers au projet %s", len(files), project_id)
     return {"projectId": project_id, "files": proj_files}
+
+@router.get("/quota")
+def get_quota():
+    return {m: {"rpm": cfg["rpm"], "tpm": cfg["tpm"]}
+            for m, cfg in RAW_MODELS.items()}

@@ -114,11 +114,13 @@ export function askQuestionStream(
     conversationId,
     conversationType = "chat",
     instructions,
+    modelId,  
   }: {
     question: string;
     conversationId?: string;
     conversationType?: string;
     instructions?: string;
+    modelId?: string;
   },
   { onDelta, onDone, onError, onConvId }: StreamCallbacks
 ): { cancel: () => void } {
@@ -128,6 +130,7 @@ export function askQuestionStream(
   if (conversationId)   payload.conversationId   = conversationId;
   if (conversationType) payload.conversationType = conversationType;
   if (instructions)     payload.instructions     = instructions;
+  if (modelId)          payload.modelId          = modelId;
 
   fetch(`${apiUrl}/api/chat/stream`, {
     method: "POST",

@@ -1,3 +1,4 @@
+// src/components/AIModelSelector.tsx
 import React, { useEffect, useRef, useState } from "react";
 import { selectModel } from "../services/modelService";
 import "./AIModelSelector.css";
@@ -10,15 +11,16 @@ export interface LlmModel {
 
 interface Props {
   models: LlmModel[];
+  value: string;                       // id sélectionné
+  onChange: (id: string) => void;      // setter contexte
 }
 
-const AIModelSelector: React.FC<Props> = ({ models }) => {
-  const defaultId   = models[0]?.id ?? "";
-  const [open, setOpen]           = useState(false);
-  const [selected, setSelected]   = useState(defaultId);
+const AIModelSelector: React.FC<Props> = ({ models, value, onChange }) => {
+  const [open, setOpen]         = useState(false);
+  const [selected, setSelected] = useState(value || models[0]?.id || "");
   const ref = useRef<HTMLDivElement>(null);
 
-  /* --- click hors composant -> referme --------------------------- */
+  /* —— ferme si clic hors composant —— */
   useEffect(() => {
     const onClick = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
@@ -27,23 +29,18 @@ const AIModelSelector: React.FC<Props> = ({ models }) => {
     return () => window.removeEventListener("mousedown", onClick);
   }, []);
 
-  /* --- mise à jour backend -------------------------------------- */
+  /* —— push contexte + backend —— */
   useEffect(() => {
-    if (selected) selectModel(selected).catch(console.error);
+    if (!selected) return;
+    onChange(selected);
+    selectModel(selected).catch(console.error);
   }, [selected]);
 
-  /* --- helpers --------------------------------------------------- */
   const current = models.find(m => m.id === selected);
+  const choose  = (id: string) => { setSelected(id); setOpen(false); };
 
-  const choose = (id: string) => {
-    setSelected(id);
-    setOpen(false);
-  };
-
-  /* --- render ---------------------------------------------------- */
   return (
     <div className="model-wrapper" ref={ref}>
-      {/* ▸ bouton entête */}
       <button className="model-button" onClick={() => setOpen(p => !p)}>
         {current?.name || "Sélectionner"} <span className="arrow">{open ? "▲" : "▼"}</span>
       </button>
@@ -51,7 +48,6 @@ const AIModelSelector: React.FC<Props> = ({ models }) => {
       {open && (
         <div className="model-menu">
           <div className="menu-title">Modèle</div>
-
           {models.map(m => (
             <div
               key={m.id}
@@ -65,8 +61,6 @@ const AIModelSelector: React.FC<Props> = ({ models }) => {
               {m.id === selected && <span className="check">✔</span>}
             </div>
           ))}
-
-          {/* <div className="menu-footer">Davantage de modèles ▸</div> */}
         </div>
       )}
     </div>

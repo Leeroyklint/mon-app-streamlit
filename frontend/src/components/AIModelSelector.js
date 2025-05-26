@@ -1,12 +1,12 @@
+// src/components/AIModelSelector.tsx
 import React, { useEffect, useRef, useState } from "react";
 import { selectModel } from "../services/modelService";
 import "./AIModelSelector.css";
-const AIModelSelector = ({ models }) => {
-    const defaultId = models[0]?.id ?? "";
+const AIModelSelector = ({ models, value, onChange }) => {
     const [open, setOpen] = useState(false);
-    const [selected, setSelected] = useState(defaultId);
+    const [selected, setSelected] = useState(value || models[0]?.id || "");
     const ref = useRef(null);
-    /* --- click hors composant -> referme --------------------------- */
+    /* —— ferme si clic hors composant —— */
     useEffect(() => {
         const onClick = (e) => {
             if (ref.current && !ref.current.contains(e.target))
@@ -15,18 +15,15 @@ const AIModelSelector = ({ models }) => {
         window.addEventListener("mousedown", onClick);
         return () => window.removeEventListener("mousedown", onClick);
     }, []);
-    /* --- mise à jour backend -------------------------------------- */
+    /* —— push contexte + backend —— */
     useEffect(() => {
-        if (selected)
-            selectModel(selected).catch(console.error);
+        if (!selected)
+            return;
+        onChange(selected);
+        selectModel(selected).catch(console.error);
     }, [selected]);
-    /* --- helpers --------------------------------------------------- */
     const current = models.find(m => m.id === selected);
-    const choose = (id) => {
-        setSelected(id);
-        setOpen(false);
-    };
-    /* --- render ---------------------------------------------------- */
+    const choose = (id) => { setSelected(id); setOpen(false); };
     return (React.createElement("div", { className: "model-wrapper", ref: ref },
         React.createElement("button", { className: "model-button", onClick: () => setOpen(p => !p) },
             current?.name || "Sélectionner",

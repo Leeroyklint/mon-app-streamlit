@@ -32,12 +32,31 @@ const ChatInput:React.FC<Props>=({
   onSend,onStop,disabled=false,streaming=false,variant="bottom"
 })=>{
   const [msg,setMsg]=useState("");
-  const [files,setFiles]=useState<File[]>([]);
+  interface FileWithPreview extends File { preview?: string }
+  const [files, setFiles] = useState<FileWithPreview[]>([]);
   const fileRef=useRef<HTMLInputElement>(null);
   const txtRef =useRef<HTMLTextAreaElement>(null);
 
-  const add=(fs:FileList|File[])=>setFiles(p=>[...p,...Array.from(fs)]);
-  const rm =(i:number)=>setFiles(p=>p.filter((_,idx)=>idx!==i));
+  /* ---------- helpers fichiers ---------- */
+  const add = (fs: FileList | File[]) =>
+    setFiles(p => [
+      ...p,
+      ...Array.from(fs).map(f =>
+        Object.assign(f, { preview: URL.createObjectURL(f) })
+      ),
+    ]);
+
+  const rm = (i: number) =>
+    setFiles(p => {
+      const removed = p[i] as any;
+      if (removed?.preview) URL.revokeObjectURL(removed.preview);
+      return p.filter((_, idx) => idx !== i);
+    });
+
+  /* libère les blobs quand le composant se démonte */
+  useEffect(() => () => {
+    files.forEach(f => (f as any).preview && URL.revokeObjectURL((f as any).preview));
+  }, [files]);
 
   const resize=useCallback(()=>{
     const el=txtRef.current; if(!el) return;
@@ -89,7 +108,8 @@ const ChatInput:React.FC<Props>=({
       <div className="input-attachment-container">
         {files.map((f,i)=>{
           const ext=(f.name.split(".").pop()||"").toLowerCase();
-          const src=isImg(ext)?URL.createObjectURL(f):icon(ext);
+          const preview = (f as any).preview;          // ajouté par add()
+          const src = isImg(ext) && preview ? preview : icon(ext);
           return(
             <div key={i} className="input-attachment">
               <img

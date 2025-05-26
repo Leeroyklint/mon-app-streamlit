@@ -4,6 +4,7 @@ import ChatMessages from "./ChatMessages";
 import { askQuestionStream, createConversation, getMessages, } from "../services/conversationService";
 import { uploadDocuments } from "../services/documentService";
 import { reserve } from "../services/rateLimiter";
+import { useModel } from "../contexts/ModelContext";
 const DocumentsChat = () => {
     const [conversationId, setConvId] = useState();
     const [messages, setMessages] = useState([]);
@@ -12,6 +13,7 @@ const DocumentsChat = () => {
     const [nbDocs, setNbDocs] = useState(0);
     const idRef = useRef(0);
     const streamRef = useRef(null);
+    const { modelId } = useModel();
     useEffect(() => {
         if (!conversationId)
             return;
@@ -69,7 +71,7 @@ const DocumentsChat = () => {
         let buffer = "";
         setStreaming(true);
         const launch = () => {
-            streamRef.current = askQuestionStream({ question: cleanMsg, conversationId: convId, conversationType: convType }, {
+            streamRef.current = askQuestionStream({ question: cleanMsg, conversationId: convId, conversationType: convType, modelId }, {
                 onDelta: d => {
                     buffer += d;
                     if (botId === undefined) {

@@ -25,8 +25,21 @@ const ChatInput = ({ onSend, onStop, disabled = false, streaming = false, varian
     const [files, setFiles] = useState([]);
     const fileRef = useRef(null);
     const txtRef = useRef(null);
-    const add = (fs) => setFiles(p => [...p, ...Array.from(fs)]);
-    const rm = (i) => setFiles(p => p.filter((_, idx) => idx !== i));
+    /* ---------- helpers fichiers ---------- */
+    const add = (fs) => setFiles(p => [
+        ...p,
+        ...Array.from(fs).map(f => Object.assign(f, { preview: URL.createObjectURL(f) })),
+    ]);
+    const rm = (i) => setFiles(p => {
+        const removed = p[i];
+        if (removed?.preview)
+            URL.revokeObjectURL(removed.preview);
+        return p.filter((_, idx) => idx !== i);
+    });
+    /* libère les blobs quand le composant se démonte */
+    useEffect(() => () => {
+        files.forEach(f => f.preview && URL.revokeObjectURL(f.preview));
+    }, [files]);
     const resize = useCallback(() => {
         const el = txtRef.current;
         if (!el)
@@ -66,7 +79,8 @@ const ChatInput = ({ onSend, onStop, disabled = false, streaming = false, varian
             }, placeholder: "Posez une question ou joignez un fichier\u2026", className: "chat-input-input", disabled: disabled }),
         React.createElement("div", { className: "input-attachment-container" }, files.map((f, i) => {
             const ext = (f.name.split(".").pop() || "").toLowerCase();
-            const src = isImg(ext) ? URL.createObjectURL(f) : icon(ext);
+            const preview = f.preview; // ajouté par add()
+            const src = isImg(ext) && preview ? preview : icon(ext);
             return (React.createElement("div", { key: i, className: "input-attachment" },
                 React.createElement("img", { src: src, alt: "", className: isImg(ext) ? "file-preview" : "file-icon" }),
                 React.createElement("div", { className: "input-attachment-info" },

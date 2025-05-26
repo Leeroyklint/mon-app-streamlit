@@ -7,6 +7,7 @@ import { askQuestionStream, getMessages, ApiError, } from "../services/conversat
 import { uploadDocuments } from "../services/documentService";
 import { reserve } from "../services/rateLimiter";
 import "./ChatApp.css";
+import { useModel } from "../contexts/ModelContext";
 const ChatApp = () => {
     /* ───────────────────────── routing ─────────────────────────── */
     const { conversationId: routeConvId } = useParams();
@@ -19,6 +20,7 @@ const ChatApp = () => {
     const [nbDocs, setNbDocs] = useState(0);
     const idRef = useRef(0);
     const streamRef = useRef(null);
+    const { modelId } = useModel();
     /* ───────────────────────── reset vers nouveau chat ─────────── */
     const resetToNewChat = () => {
         idRef.current = 0;
@@ -138,6 +140,7 @@ const ChatApp = () => {
                 question: cleanMsg,
                 ...(convId ? { conversationId: convId } : {}),
                 conversationType: "chat",
+                modelId,
             }, {
                 onConvId: id => {
                     if (!conversationId) {

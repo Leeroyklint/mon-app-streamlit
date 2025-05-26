@@ -1,28 +1,25 @@
-const QUOTAS = {
-    "GPT 4o": { rpm: 48 },
-    "GPT 4o-mini": { rpm: 2_500 },
-    "GPT o1": { rpm: 100 },
-    "GPT o1-mini": { rpm: 100 },
-    "GPT o3-mini": { rpm: 150 },
-    "GPT 4.1-mini": { rpm: 150 },
-    "GPT 4.1": { rpm: 150 },
+let QUOTAS = {
+    "GPT 4o": { rpm: 48 }, // <-- valeurs par défaut (secours)
 };
+fetch(import.meta.env.VITE_API_URL + "/api/quota", {
+    headers: { "Content-Type": "application/json" },
+})
+    .then(r => r.json())
+    .then(q => (QUOTAS = q))
+    .catch(() => console.warn("Impossible de charger /quota : on garde le fallback"));
 const calls = {};
 /**
- * Si un slot est libre → retourne 0.
- * Sinon retourne le temps à attendre en **millisecondes**.
+ * Si un slot est libre → 0 ms ; sinon délai à attendre (ms).
  */
 export function reserve(family = "GPT 4o") {
-    const q = QUOTAS[family];
-    if (!q)
-        return 0; // famille inconnue → pas de limite
+    const rpm = QUOTAS[family]?.rpm;
+    if (!rpm)
+        return 0; // pas de limite connue
     const now = Date.now() / 1_000;
     const arr = (calls[family] ||= []).filter(t => now - t < 60);
-    if (arr.length < q.rpm) {
+    if (arr.length < rpm) {
         arr.push(now);
-        calls[family] = arr;
         return 0;
     }
-    const wait = 60 - (now - arr[0]) + 0.05;
-    return Math.ceil(wait * 1_000); // délai en ms
+    return Math.ceil((60 - (now - arr[0]) + 0.05) * 1_000);
 }

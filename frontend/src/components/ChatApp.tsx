@@ -12,6 +12,7 @@ import {
 import { uploadDocuments } from "../services/documentService";
 import { reserve } from "../services/rateLimiter";
 import "./ChatApp.css";
+import { useModel } from "../contexts/ModelContext";
 
 const ChatApp: React.FC = () => {
   /* ───────────────────────── routing ─────────────────────────── */
@@ -27,6 +28,8 @@ const ChatApp: React.FC = () => {
 
   const idRef     = useRef(0);
   const streamRef = useRef<{ cancel: () => void } | null>(null);
+
+  const { modelId } = useModel();   
 
   /* ───────────────────────── reset vers nouveau chat ─────────── */
   const resetToNewChat = () => {
@@ -157,6 +160,7 @@ const ChatApp: React.FC = () => {
           question: cleanMsg,
           ...(convId ? { conversationId: convId } : {}),
           conversationType: "chat",
+          modelId,
         },
         {
           onConvId: id => {

@@ -86,7 +86,7 @@ export const askQuestion = async (question, conversationId, conversationType = "
     }
     return (await r.json()).answer;
 };
-export function askQuestionStream({ question, conversationId, conversationType = "chat", instructions, }, { onDelta, onDone, onError, onConvId }) {
+export function askQuestionStream({ question, conversationId, conversationType = "chat", instructions, modelId, }, { onDelta, onDone, onError, onConvId }) {
     const ctrl = new AbortController();
     const payload = { question };
     if (conversationId)
@@ -95,6 +95,8 @@ export function askQuestionStream({ question, conversationId, conversationType =
         payload.conversationType = conversationType;
     if (instructions)
         payload.instructions = instructions;
+    if (modelId)
+        payload.modelId = modelId;
     fetch(`${apiUrl}/api/chat/stream`, {
         method: "POST",
         headers: authHeaders({ "Content-Type": "application/json" }),

@@ -9,6 +9,7 @@ import {
 import { uploadDocuments } from "../services/documentService";
 import { reserve } from "../services/rateLimiter";
 import { Message, Attachment } from "../interfaces/interfaces";
+import { useModel } from "../contexts/ModelContext";
 
 const DocumentsChat: React.FC = () => {
   const [conversationId, setConvId] = useState<string>();
@@ -20,6 +21,8 @@ const DocumentsChat: React.FC = () => {
 
   const idRef     = useRef(0);
   const streamRef = useRef<{ cancel: () => void } | null>(null);
+
+  const { modelId } = useModel();
 
   useEffect(() => {
     if (!conversationId) return;
@@ -86,7 +89,7 @@ const DocumentsChat: React.FC = () => {
 
     const launch = () => {
       streamRef.current = askQuestionStream(
-        { question: cleanMsg, conversationId: convId!, conversationType: convType },
+        { question: cleanMsg, conversationId: convId!, conversationType: convType, modelId},
         {
           onDelta: d => {
             buffer += d;
