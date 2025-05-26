@@ -16,9 +16,10 @@ const models = [
   { id: "GPT 4o-mini",  name: "GPT 4o-mini",  subtitle: "Ultra léger, idéal tâches simples" },
   { id: "GPT o1",       name: "GPT o1",       subtitle: "Polyvalent, raisonnement ++" },
   { id: "GPT o1-mini",  name: "GPT o1-mini",  subtitle: "Léger mais plus malin" },
-  { id: "GPT 4.1",      name: "GPT 4.1",      subtitle: "Avancé et rapide" },
-  { id: "GPT 4.1-mini", name: "GPT 4.1-mini", subtitle: "Très rapide et capable" },
+  // { id: "GPT 4.1",      name: "GPT 4.1",      subtitle: "Avancé et rapide" },
+  // { id: "GPT 4.1-mini", name: "GPT 4.1-mini", subtitle: "Très rapide et capable" },
   { id: "GPT o3-mini",  name: "GPT o3-mini",  subtitle: "Performances pour devs" },
+  { id: "GPT o4-mini",  name: "GPT o4-mini",  subtitle: "Performances avancés pour devs" },
 ];
 
 /* ─── composant interne : toute la logique UI ────────────────── */

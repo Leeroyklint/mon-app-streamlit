@@ -82,6 +82,18 @@ RAW_MODELS: Dict[str, Dict[str, object]] = {
         "tpm": 90_000,
         "payload_key": "max_completion_tokens",
     },
+    # ─────────── GPT-o4-mini ──────
+    "GPT o4-mini": {
+        "env_keys": [
+            ("AZ_OPENAI_API_o4_mini", "AZ_OPENAI_ENDPOINT_o4_mini"),
+            ("AZ_OPENAI_API_o4_mini", "AZ_OPENAI_ENDPOINT_o4_mini_2"),
+            ("AZ_OPENAI_API_o4_mini", "AZ_OPENAI_ENDPOINT_o4_mini_3"),
+        ],
+        "max_tokens": 100_000,
+        "rpm": 130,
+        "tpm": 130_000,
+        "payload_key": "max_completion_tokens",
+    },
     # ─────────── GPT-4.1 ───────────
     "GPT 4.1-mini": {
         "env_keys": [

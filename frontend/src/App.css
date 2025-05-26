@@ -11,7 +11,7 @@
 .toggle-sidebar-button {
   z-index: 1000;
   padding: 8px;
-  background-color: #e6e6e6d1;
+  background-color:var(--code-bg);
   border: none;
   border-radius: 4px;
   cursor: pointer;
