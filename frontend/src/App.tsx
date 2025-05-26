@@ -52,13 +52,13 @@ function AppInner() {
       {sidebarVisible && (
         <Sidebar userName={userName} onToggleSidebar={toggleSidebar} />
       )}
-      <button
+      {/* <button
         className="toggle-sidebar-button"
         onClick={toggleSidebar}
         style={{ position: "fixed", top: 10, left: sidebarVisible ? 270 : 10 }}
       >
         {sidebarVisible ? "«" : "»"}
-      </button>
+      </button> */}
 
       {/* routes principales */}
       <Routes>

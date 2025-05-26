@@ -36,7 +36,6 @@ function AppInner() {
     return (React.createElement("div", { className: "App" },
         React.createElement(AIModelSelector, { models: models, value: modelId, onChange: setModelId }),
         sidebarVisible && (React.createElement(Sidebar, { userName: userName, onToggleSidebar: toggleSidebar })),
-        React.createElement("button", { className: "toggle-sidebar-button", onClick: toggleSidebar, style: { position: "fixed", top: 10, left: sidebarVisible ? 270 : 10 } }, sidebarVisible ? "«" : "»"),
         React.createElement(Routes, null,
             React.createElement(Route, { path: "/", element: React.createElement(ChatApp, null) }),
             React.createElement(Route, { path: "/conversation/:conversationId", element: React.createElement(ChatApp, null) }),
