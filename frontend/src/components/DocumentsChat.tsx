@@ -15,7 +15,7 @@ const DocumentsChat: React.FC = () => {
   const [conversationId, setConvId] = useState<string>();
   const [messages, setMessages]     = useState<Message[]>([]);
   const [streaming, setStreaming]   = useState(false);
-
+  const [generating, setGenerating] = useState(false);  
   const [ingesting, setIngesting]   = useState(false);
   const [nbDocs,    setNbDocs]      = useState(0);
 
@@ -113,11 +113,12 @@ const DocumentsChat: React.FC = () => {
     <div>
       <h2>Chat Documents</h2>
       <ChatMessages
-        messages={messages}
-        streaming={streaming}
-        waitingForDoc={ingesting}
-        nbDocs={nbDocs}
-      />
+            messages={messages}
+            streaming={streaming}
+            waitingForDoc={ingesting}
+            generating={generating}     
+            nbDocs={nbDocs}
+          />
       <ChatInput
         onSend={handleSend}
         onStop={stopStream}

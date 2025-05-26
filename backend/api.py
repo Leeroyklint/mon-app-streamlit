@@ -308,24 +308,44 @@ async def ocr_image(
 
 # ───────────────────────────── Génération image (DALL·E-3)
 @router.post("/images/generate")
-@router.post("/image/generate")   # alias rétro-compat
-def generate_image(
-    req: ImageRequest,
-    user: dict = Depends(get_current_user),
-):
-    """
-    Génère une image via le déploiement Azure DALL·E-3
-    et renvoie l’URL SAS.
-    """
-    logger.info("Image requested by %s – %s", user["entra_oid"], req.prompt[:60])
-    try:
-        url = dalle3_generate(req.prompt, size=req.size or "1024x1024")
-        return {"url": url}
-    except HTTPException as exc:       # levée dans dalle3_generate
-        raise exc
-    except Exception as exc:
-        logger.exception("Image generation failure")
-        raise HTTPException(500, "Erreur génération d’image") from exc
+async def dalle_generate(req: Request, user: dict = Depends(get_current_user)):
+    data        = await req.json()
+    prompt      = data.get("prompt", "")
+    size        = data.get("size",  "1024x1024")
+    conv_id_in  = data.get("conversationId")        # ← peut être None
+
+    url = dalle3_generate(prompt, size=size)
+
+    # ── persistance ───────────────────────────────────────────────
+    def _save_to_conv(conv: dict) -> None:
+        # ① message user
+        if prompt.strip():
+            conv["messages"].append({"role": "user", "content": prompt})
+        # ② réponse du bot = pièce jointe image
+        conv["messages"].append({
+            "role": "assistant",
+            "content": "",                     
+            "attachments": [{
+                "name": "image.png",
+                "type": "image/png",
+                "url":  url,
+            }],
+        })
+        update_conversation(conv)
+
+    # conversation existante fournie
+    if conv_id_in:
+        conv = get_conversation(user["entra_oid"], conv_id_in)
+        if conv: _save_to_conv(conv)
+        conv_id_out = conv_id_in
+    # sinon on crée un nouveau chat « image »
+    else:
+        conv = create_conversation(user["entra_oid"], prompt, conversation_type="chat")
+        _save_to_conv(conv)
+        conv_id_out = conv["id"]
+
+    return {"url": url, "conversationId": conv_id_out}
+
 
 # ───────────────────────────── /chat  (réponse complète)
 @router.post("/chat", response_model=ChatResponse)

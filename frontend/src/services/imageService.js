@@ -12,13 +12,16 @@ export const ocrImage = async (file) => {
     return (await r.json()).text;
 };
 /* -------- Génération DALL·E-3 -------- */
-export const generateImage = async (prompt, size = "1024x1024") => {
+export const generateImage = async (prompt, conversationId, size = "1024x1024") => {
     const r = await fetch(`${apiUrl}/api/images/generate`, {
         method: "POST",
         headers: authHeaders({ "Content-Type": "application/json" }),
-        body: JSON.stringify({ prompt, size }),
+        body: JSON.stringify({ prompt, size, conversationId }),
     });
-    if (!r.ok)
-        throw new Error("Generate failed");
-    return (await r.json()).url;
+    if (!r.ok) {
+        const data = await r.json().catch(() => ({}));
+        /* on relance l’erreur lisible par ChatApp */
+        throw new Error(data?.detail || `Generation failed (HTTP ${r.status})`);
+    }
+    return r.json(); // ← contient { url, conversationId }
 };

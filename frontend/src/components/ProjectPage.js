@@ -20,6 +20,7 @@ const ProjectPage = () => {
     const [messages, setMessages] = useState([]);
     const [streaming, setStreaming] = useState(false);
     const [loading, setLoading] = useState(false);
+    const [generating, setGenerating] = useState(false);
     const [ingesting, setIngesting] = useState(false);
     const [nbDocs, setNbDocs] = useState(0);
     const idRef = useRef(0);
@@ -152,7 +153,7 @@ const ProjectPage = () => {
                         c.title))),
                     chats.length === 0 && (React.createElement("li", { style: { fontStyle: "italic" } }, "Aucun chat pour l\u2019instant.")))))),
         conversationId && (React.createElement(React.Fragment, null,
-            React.createElement(ChatMessages, { messages: messages, streaming: streaming, waitingForDoc: ingesting, nbDocs: nbDocs }),
+            React.createElement(ChatMessages, { messages: messages, streaming: streaming, waitingForDoc: ingesting, generating: generating, nbDocs: nbDocs }),
             React.createElement(ChatInput, { onSend: handleSend, onStop: stopStream, streaming: streaming, disabled: loading || ingesting }))),
         modal && (React.createElement("div", { className: "modal-back", onClick: () => setModal(false) },
             React.createElement("div", { className: "modal-box", onClick: e => e.stopPropagation() },

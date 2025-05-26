@@ -9,6 +9,7 @@ const DocumentsChat = () => {
     const [conversationId, setConvId] = useState();
     const [messages, setMessages] = useState([]);
     const [streaming, setStreaming] = useState(false);
+    const [generating, setGenerating] = useState(false);
     const [ingesting, setIngesting] = useState(false);
     const [nbDocs, setNbDocs] = useState(0);
     const idRef = useRef(0);
@@ -90,7 +91,7 @@ const DocumentsChat = () => {
     };
     return (React.createElement("div", null,
         React.createElement("h2", null, "Chat Documents"),
-        React.createElement(ChatMessages, { messages: messages, streaming: streaming, waitingForDoc: ingesting, nbDocs: nbDocs }),
+        React.createElement(ChatMessages, { messages: messages, streaming: streaming, waitingForDoc: ingesting, generating: generating, nbDocs: nbDocs }),
         React.createElement(ChatInput, { onSend: handleSend, onStop: stopStream, streaming: streaming, disabled: ingesting })));
 };
 export default DocumentsChat;

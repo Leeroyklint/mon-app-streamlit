@@ -143,3 +143,16 @@
   color:#6b6b6b;
   margin:24px 0;
 }
+
+.chat-img {
+  max-width: 220px;
+  border-radius: 8px;
+  margin-top: 4px;
+}
+
+.file-link {
+  display: inline-block;
+}
+
+.message-code     { background:#111; color:#eee; padding:12px; border-radius:6px;
+                    overflow:auto; font-family:monospace; font-size:14px; }

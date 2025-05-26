@@ -32,7 +32,7 @@ const ProjectPage: React.FC = () => {
   const [messages, setMessages]       = useState<Message[]>([]);
   const [streaming, setStreaming]     = useState(false);
   const [loading,   setLoading]       = useState(false);
-
+  const [generating, setGenerating] = useState(false);  
   const [ingesting, setIngesting]     = useState(false);
   const [nbDocs,    setNbDocs]        = useState(0);
 
@@ -227,6 +227,7 @@ const ProjectPage: React.FC = () => {
             messages={messages}
             streaming={streaming}
             waitingForDoc={ingesting}
+            generating={generating}     
             nbDocs={nbDocs}
           />
           <ChatInput

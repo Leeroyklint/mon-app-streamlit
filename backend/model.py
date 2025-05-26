@@ -8,7 +8,7 @@ from __future__ import annotations
 import os, time, random, json, threading, base64, logging
 from collections import defaultdict, deque
 from typing import Dict, Deque, Iterable, List, Tuple, Generator   # ← +Generator
-
+from fastapi import HTTPException 
 import requests
 from dotenv import load_dotenv
 
@@ -338,6 +338,11 @@ def dalle3_generate(prompt: str, size: str = "1024x1024") -> str:
         r.raise_for_status()
         return r.json()["data"][0]["url"]
     except requests.HTTPError as exc:
-        msg = f"DALL·E error {r.status_code}: {r.text}"
+        resp_text = r.text             # <── on capture ici
+        # Slack sur les refus de policy : on redescend un 400 générique
+        if r.status_code == 400 and "content_policy_violation" in resp_text:
+            raise HTTPException(400, "Prompt bloqué par la politique de sûreté") from exc
+
+        msg = f"DALL·E error {r.status_code}: {resp_text}"
         logger.error(msg)
         raise HTTPException(r.status_code, msg) from exc
