@@ -5,7 +5,7 @@ streaming + sync.
 
 from __future__ import annotations
 
-import os, time, random, json, threading, base64, logging
+import os, time, random, json, threading, base64, logging, tiktoken
 from collections import defaultdict, deque
 from typing import Dict, Deque, Iterable, List, Tuple, Generator   # ← +Generator
 from fastapi import HTTPException 
@@ -17,6 +17,8 @@ load_dotenv()
 
 # ─────── petit logger (optionnel) ───────
 logger = logging.getLogger(__name__)
+
+_ENC = tiktoken.get_encoding("cl100k_base") 
 
 # ╔══════════════════════════════  REGISTRY  ══════════════════════════════╗
 #  Pour chaque famille : liste (api_key_env, endpoint_env) + quotas.
@@ -118,6 +120,23 @@ RAW_MODELS: Dict[str, Dict[str, object]] = {
         "payload_key": "max_completion_tokens",
     },
 }
+
+# -------------------------------------------------------------
+#  utilitaire : compte les tokens d’une liste messages OpenAI
+# -------------------------------------------------------------
+def _count_prompt_tokens(msgs: list[dict]) -> int:
+    """
+    Version « rapide » : on concatène tous les textes.
+    Suffisant pour estimer la taille du prompt (< 1 ms).
+    """
+    parts: list[str] = []
+    for m in msgs:
+        c = m.get("content", "")
+        if isinstance(c, list):                       # vision : on ne garde que le texte
+            parts.extend(p["text"] for p in c if p.get("type") == "text")
+        else:
+            parts.append(str(c))
+    return len(_ENC.encode("\n".join(parts)))
 
 # ╔════════════════════════════  RATE LIMIT (in-proc, par endpoint) ═════════╗
 _lock_rl = threading.Lock()
@@ -270,10 +289,12 @@ def azure_llm_chat_stream(messages: List[dict],
     while global_rot < len(cfg["env_keys"]):
         api_key, ep, rpm = _pickup_creds(model)
         _wait_slot(ep, rpm)
-
+        
+        prompt_tokens = _count_prompt_tokens(messages)
+        max_out = max(1, cfg["max_tokens"] - prompt_tokens)
         payload = {
             "messages": messages,
-            cfg["payload_key"]: cfg["max_tokens"],
+            cfg["payload_key"]: max_out,
             "model": ep.rsplit("/", 3)[-3],
             "stream": True,
         }

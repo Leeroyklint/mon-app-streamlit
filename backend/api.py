@@ -123,7 +123,7 @@ def _build_prompt(
             "content": (
                 f"Tu es le modèle **{model_name}**. "
                 "Si l’utilisateur demande quel modèle tu es, "
-                "réponds exactement ce nom, en précisant que tu es un assistant virtuel à la disposition de ses utilisateurs."
+                "réponds ce nom, et surtout de ne pas oublier de dire que tu es un assistant virtuel à la disposition de ses utilisateurs."
             )
         })
 

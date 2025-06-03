@@ -119,12 +119,26 @@ export function askQuestionStream({ question, conversationId, conversationType =
             onConvId(newId);
         const reader = r.body.getReader();
         const decoder = new TextDecoder();
+        let residual = "";
         while (true) {
             const { value, done } = await reader.read();
             if (done)
                 break;
-            onDelta(decoder.decode(value));
+            const chunk = decoder.decode(value);
+            /* Flux Raw : le back n’ajoute pas « data: », mais en cas
+               d’upgrade futur vers SSE on gère aussi "[DONE]"          */
+            if (chunk.trim() === "[DONE]") {
+                if (residual)
+                    onDelta(residual); // flush final si besoin
+                onDone();
+                return;
+            }
+            onDelta(chunk);
+            residual = ""; // tout a été envoyé
         }
+        /* reader terminé sans "[DONE]" → flush éventuel */
+        if (residual)
+            onDelta(residual);
         onDone();
     })
         .catch(onError);
