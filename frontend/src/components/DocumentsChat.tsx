@@ -10,6 +10,9 @@ import { uploadDocuments } from "../services/documentService";
 import { reserve } from "../services/rateLimiter";
 import { Message, Attachment } from "../interfaces/interfaces";
 import { useModel } from "../contexts/ModelContext";
+import { useWeb }   from "../contexts/WebContext"; 
+import { createDocument }      from "../services/documentService";
+import { detectDocRequest }    from "../utils/detectDocRequest";
 
 const DocumentsChat: React.FC = () => {
   const [conversationId, setConvId] = useState<string>();
@@ -23,6 +26,7 @@ const DocumentsChat: React.FC = () => {
   const streamRef = useRef<{ cancel: () => void } | null>(null);
 
   const { modelId } = useModel();
+  const { web }     = useWeb(); 
 
   useEffect(() => {
     if (!conversationId) return;
@@ -44,8 +48,25 @@ const DocumentsChat: React.FC = () => {
 
   const handleSend = async (userMessage: string, files: File[]) => {
     if (streaming || ingesting) return;
+
+    // ── active / désactive la recherche Web pour cette requête
+    (window as any).___enableWeb = web;                // ← ligne à AJOUTER
+
     const convType = "doc";
     const cleanMsg = userMessage.trim();
+
+    /* ---------- création de document ---------- */
+    const kind = detectDocRequest(cleanMsg);
+    if (kind) {
+      try {
+        const resp = await createDocument(kind, cleanMsg);
+        const url  = URL.createObjectURL(await resp.blob());
+        add(`Voici votre fichier ${kind}`, "bot",
+            [{ name:`fichier.${kind}`, url, type:"application/octet-stream" }]);
+      } catch(e){ console.error(e); add("❌ Erreur création fichier", "bot"); }
+      return;                              // pas de LLM
+
+    }
 
     /* ----- fichiers -> preview immédiate ----- */
     let preview: Attachment[] | undefined;
@@ -89,7 +110,7 @@ const DocumentsChat: React.FC = () => {
 
     const launch = () => {
       streamRef.current = askQuestionStream(
-        { question: cleanMsg, conversationId: convId!, conversationType: convType, modelId},
+        { question: cleanMsg, conversationId: convId!, conversationType: convType, modelId,useWeb: web},
         {
           onDelta: d => {
             buffer += d;

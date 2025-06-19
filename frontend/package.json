@@ -16,6 +16,7 @@
     "react-markdown": "^9.1.0",
     "react-router-dom": "^7.3.0",
     "react-textarea-autosize": "^8.5.8",
+    "rehype-raw": "^7.0.0",
     "remark-gfm": "^4.0.1"
   },
   "devDependencies": {

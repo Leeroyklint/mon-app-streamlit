@@ -27,7 +27,7 @@ const Conversations: React.FC = () => {
       /* on élimine les convs liées à un projet pour cette liste “générale” */
       const clean: Record<string, Conversation[]> = {};
       Object.entries(data).forEach(([grp, lst]) => {
-        const l = lst.filter(c => !c.project_id);
+        const l = lst.filter(c => c.type === "chat" && !c.project_id);
         if (l.length) clean[grp] = l;
       });
       setGroups(clean);

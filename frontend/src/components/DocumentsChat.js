@@ -5,6 +5,9 @@ import { askQuestionStream, createConversation, getMessages, } from "../services
 import { uploadDocuments } from "../services/documentService";
 import { reserve } from "../services/rateLimiter";
 import { useModel } from "../contexts/ModelContext";
+import { useWeb } from "../contexts/WebContext";
+import { createDocument } from "../services/documentService";
+import { detectDocRequest } from "../utils/detectDocRequest";
 const DocumentsChat = () => {
     const [conversationId, setConvId] = useState();
     const [messages, setMessages] = useState([]);
@@ -15,6 +18,7 @@ const DocumentsChat = () => {
     const idRef = useRef(0);
     const streamRef = useRef(null);
     const { modelId } = useModel();
+    const { web } = useWeb();
     useEffect(() => {
         if (!conversationId)
             return;
@@ -29,8 +33,24 @@ const DocumentsChat = () => {
     const handleSend = async (userMessage, files) => {
         if (streaming || ingesting)
             return;
+        // ── active / désactive la recherche Web pour cette requête
+        window.___enableWeb = web; // ← ligne à AJOUTER
         const convType = "doc";
         const cleanMsg = userMessage.trim();
+        /* ---------- création de document ---------- */
+        const kind = detectDocRequest(cleanMsg);
+        if (kind) {
+            try {
+                const resp = await createDocument(kind, cleanMsg);
+                const url = URL.createObjectURL(await resp.blob());
+                add(`Voici votre fichier ${kind}`, "bot", [{ name: `fichier.${kind}`, url, type: "application/octet-stream" }]);
+            }
+            catch (e) {
+                console.error(e);
+                add("❌ Erreur création fichier", "bot");
+            }
+            return; // pas de LLM
+        }
         /* ----- fichiers -> preview immédiate ----- */
         let preview;
         if (files.length) {
@@ -72,7 +92,7 @@ const DocumentsChat = () => {
         let buffer = "";
         setStreaming(true);
         const launch = () => {
-            streamRef.current = askQuestionStream({ question: cleanMsg, conversationId: convId, conversationType: convType, modelId }, {
+            streamRef.current = askQuestionStream({ question: cleanMsg, conversationId: convId, conversationType: convType, modelId, useWeb: web }, {
                 onDelta: d => {
                     buffer += d;
                     if (botId === undefined) {

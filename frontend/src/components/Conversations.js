@@ -19,7 +19,7 @@ const Conversations = () => {
             /* on élimine les convs liées à un projet pour cette liste “générale” */
             const clean = {};
             Object.entries(data).forEach(([grp, lst]) => {
-                const l = lst.filter(c => !c.project_id);
+                const l = lst.filter(c => c.type === "chat" && !c.project_id);
                 if (l.length)
                     clean[grp] = l;
             });

@@ -155,7 +155,18 @@ const ProjectList: React.FC<Props> = ({ onCreateProject }) => {
               onClick={() => openProject(p.id)}
             >
               <span style={{ display:"flex",alignItems:"center",gap:6 }}>
-                <span style={{ fontSize:18 }}>📂</span> {p.name}
+                <span style={{ fontSize:18 }}>
+                  <img
+                    src={folderIcon}
+                    alt="Nouveau Chat Icon"
+                    style={{
+                      width: "18px",
+                      height: "18px",
+                      marginRight: "5px",
+                      verticalAlign: "middle",
+                    }}
+                  />
+                </span> {p.name}
               </span>
               <button
                 className="delete-btn"

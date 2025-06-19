@@ -13,11 +13,15 @@ import base64, logging, tiktoken, mimetypes
 from datetime import datetime, timezone
 from typing import Optional, List, Tuple, Iterable
 
+from uuid import uuid4
+from pathlib import Path
+import tempfile, pandas as pd
+
 from fastapi import (
     APIRouter, HTTPException, Depends, UploadFile,
     File, Form, Request
 )
-from fastapi.responses import StreamingResponse, JSONResponse
+from fastapi.responses import StreamingResponse, JSONResponse, FileResponse
 
 from backend.auth  import get_current_user
 from backend.db    import (
@@ -213,6 +217,14 @@ def _prepare_conversation(req, uid: str) -> Tuple[dict, Iterable[dict]]:
     if doc_summaries: base_sys += f"Document overviews:\n{doc_summaries}\n\n"
     if rag_context:   base_sys += f"Context passages:\n{rag_context}"
 
+    # ─── navigation Web autorisée ? ──────────────────────────────
+    if getattr(req, "useWeb", False):
+        base_sys += (
+            "\n\nTu as le droit d'utiliser l'outil `web.run` pour faire des recherches "
+            "sur Internet quand c'est pertinent. "
+            "Cite toujours tes sources avec le format demandé."
+        )
+
     prompt = _build_prompt(conv, req.question, base_sys, model_name=chosen_model)
 
     # ── 4. Vision : convertit les attachments ----------------------------------
@@ -246,6 +258,7 @@ class ChatRequest(BaseModel):
     projectId: Optional[str] = None
     instructions: Optional[str] = ""
     modelId: Optional[str] = None
+    useWeb: bool = False  
 
 class ChatResponse(BaseModel):
     answer: str
@@ -508,6 +521,48 @@ async def upload_project_files(
     update_project(proj)
     logger.debug("Ajout de %d fichiers au projet %s", len(files), project_id)
     return {"projectId": project_id, "files": proj_files}
+
+@router.post("/docs/create")
+async def create_document(req: Request, user: dict = Depends(get_current_user)):
+    data = await req.json()
+    kind: str = (data.get("type") or "").lower()
+    payload   = data.get("content")
+
+    tmp   = Path(tempfile.gettempdir()) / f"{uuid4()}.{kind}"
+    try:
+        if kind == "csv":
+            pd.DataFrame(payload).to_csv(tmp, index=False)
+
+        elif kind in ("doc", "docx"):
+            from docx import Document
+            doc = Document()
+            for par in str(payload).split("\n\n"):
+                doc.add_paragraph(par.strip())
+            doc.save(tmp)
+
+        elif kind == "pdf":
+            from reportlab.pdfgen import canvas
+            c, y = canvas.Canvas(str(tmp)), 800
+            for line in str(payload).split("\n"):
+                c.drawString(40, y, line[:120]); y -= 14
+            c.save()
+
+        elif kind in ("ppt", "pptx"):
+            from pptx import Presentation
+            prs, slide = Presentation(), None
+            slide = prs.slides.add_slide(prs.slide_layouts[1])
+            slide.shapes.title.text                = payload.get("title", "Slide 1")
+            slide.shapes.placeholders[1].text      = payload.get("body", "")
+            prs.save(tmp)
+
+        else:
+            raise HTTPException(400, "Type de document non supporté")
+
+    except Exception as exc:
+        logger.exception("Doc generation error")
+        raise HTTPException(500, f"Erreur création {kind}") from exc
+
+    return FileResponse(tmp, filename=tmp.name, media_type="application/octet-stream")
 
 @router.get("/quota")
 def get_quota():

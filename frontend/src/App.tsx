@@ -8,6 +8,7 @@ import Sidebar from "./components/Sidebar";
 import AIModelSelector from "./components/AIModelSelector";
 import { getCurrentUser, User } from "./services/userService";
 import { ModelProvider, useModel } from "./contexts/ModelContext";
+import { WebProvider }             from "./contexts/WebContext";
 import "./App.css";
 
 /* ─── liste des modèles affichés ─────────────────────────────── */
@@ -75,7 +76,9 @@ function AppInner() {
 export default function App() {
   return (
     <ModelProvider>
-      <AppInner />
+      <WebProvider>
+        <AppInner />
+      </WebProvider>
     </ModelProvider>
   );
 }

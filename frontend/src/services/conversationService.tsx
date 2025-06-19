@@ -18,8 +18,16 @@ const apiUrl = import.meta.env.VITE_API_URL;
 export const getConversations = async () => {
   const r = await fetch(`${apiUrl}/api/conversations`, { headers: authHeaders() });
   if (!r.ok) throw new ApiError(r.status, "Erreur chargement convs");
-  return r.json() as Promise<Record<string, Conversation[]>>;
-};
+  const raw = (await r.json()) as Record<string, Conversation[]>;
+
+  // — garde uniquement les vrais chats —
+  const clean: Record<string, Conversation[]> = {};
+  Object.entries(raw).forEach(([grp, list]) => {
+    const chats = list.filter(c => c.type === "chat");
+    if (chats.length) clean[grp] = chats;
+  });
+  return clean;
+ };
 
 export const deleteConversation = async (id: string) => {
   const r = await fetch(`${apiUrl}/api/conversations/${id}`, {
@@ -115,12 +123,14 @@ export function askQuestionStream(
     conversationType = "chat",
     instructions,
     modelId,  
+    useWeb,
   }: {
     question: string;
     conversationId?: string;
     conversationType?: string;
     instructions?: string;
     modelId?: string;
+    useWeb?: boolean;
   },
   { onDelta, onDone, onError, onConvId }: StreamCallbacks
 ): { cancel: () => void } {
@@ -131,6 +141,8 @@ export function askQuestionStream(
   if (conversationType) payload.conversationType = conversationType;
   if (instructions)     payload.instructions     = instructions;
   if (modelId)          payload.modelId          = modelId;
+  if (useWeb)           payload.useWeb           = true;   
+  if ((window as any).___enableWeb) payload.useWeb    = true;
 
   fetch(`${apiUrl}/api/chat/stream`, {
     method: "POST",

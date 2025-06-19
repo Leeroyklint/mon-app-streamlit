@@ -8,6 +8,7 @@ import Sidebar from "./components/Sidebar";
 import AIModelSelector from "./components/AIModelSelector";
 import { getCurrentUser } from "./services/userService";
 import { ModelProvider, useModel } from "./contexts/ModelContext";
+import { WebProvider } from "./contexts/WebContext";
 import "./App.css";
 /* ─── liste des modèles affichés ─────────────────────────────── */
 const models = [
@@ -45,5 +46,6 @@ function AppInner() {
 /* ─── export racine avec <ModelProvider> ──────────────────────── */
 export default function App() {
     return (React.createElement(ModelProvider, null,
-        React.createElement(AppInner, null)));
+        React.createElement(WebProvider, null,
+            React.createElement(AppInner, null))));
 }

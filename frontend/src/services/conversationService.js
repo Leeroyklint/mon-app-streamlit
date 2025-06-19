@@ -15,7 +15,15 @@ export const getConversations = async () => {
     const r = await fetch(`${apiUrl}/api/conversations`, { headers: authHeaders() });
     if (!r.ok)
         throw new ApiError(r.status, "Erreur chargement convs");
-    return r.json();
+    const raw = (await r.json());
+    // — garde uniquement les vrais chats —
+    const clean = {};
+    Object.entries(raw).forEach(([grp, list]) => {
+        const chats = list.filter(c => c.type === "chat");
+        if (chats.length)
+            clean[grp] = chats;
+    });
+    return clean;
 };
 export const deleteConversation = async (id) => {
     const r = await fetch(`${apiUrl}/api/conversations/${id}`, {
@@ -86,7 +94,7 @@ export const askQuestion = async (question, conversationId, conversationType = "
     }
     return (await r.json()).answer;
 };
-export function askQuestionStream({ question, conversationId, conversationType = "chat", instructions, modelId, }, { onDelta, onDone, onError, onConvId }) {
+export function askQuestionStream({ question, conversationId, conversationType = "chat", instructions, modelId, useWeb, }, { onDelta, onDone, onError, onConvId }) {
     const ctrl = new AbortController();
     const payload = { question };
     if (conversationId)
@@ -97,6 +105,10 @@ export function askQuestionStream({ question, conversationId, conversationType =
         payload.instructions = instructions;
     if (modelId)
         payload.modelId = modelId;
+    if (useWeb)
+        payload.useWeb = true;
+    if (window.___enableWeb)
+        payload.useWeb = true;
     fetch(`${apiUrl}/api/chat/stream`, {
         method: "POST",
         headers: authHeaders({ "Content-Type": "application/json" }),

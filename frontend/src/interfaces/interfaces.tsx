@@ -1,7 +1,8 @@
 export interface Conversation {
   id: string;
   title: string;
-  project_id?: string;      // ← nouveau : identifie les chats liés à un projet
+  project_id?: string;   
+  type?: string;  
   messages?: Message[];
 }
 

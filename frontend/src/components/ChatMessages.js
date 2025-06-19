@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import rehypeRaw from "rehype-raw";
 import "./ChatMessages.css";
 import CodeBlock from "./CodeBlock";
 /* ---------- icônes fichiers ---------- */
@@ -55,7 +56,9 @@ const ChatMessages = ({ messages, streaming, waitingForDoc, generating, nbDocs, 
                         ? React.createElement("pre", { className: "message-text" }, m.text)
                         : isRawCode(m.text)
                             ? React.createElement(CodeBlock, { className: "language-html" }, m.text)
-                            : React.createElement(ReactMarkdown, { remarkPlugins: [remarkGfm], components: { code: MarkdownCode } }, m.text)),
+                            : React.createElement(ReactMarkdown, { remarkPlugins: [remarkGfm], rehypePlugins: [rehypeRaw], components: { code: MarkdownCode,
+                                    table: props => React.createElement("table", { className: "pretty-table", ...props })
+                                } }, m.text)),
                     isLastBot && streaming && !m.text && React.createElement("span", { className: "bot-spinner" }))));
         }),
         botTyping && !waitingForDoc && React.createElement("div", { className: "thinking-placeholder" }, "R\u00E9flexion\u2026"),

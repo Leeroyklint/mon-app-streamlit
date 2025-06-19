@@ -125,7 +125,13 @@ const ProjectList = ({ onCreateProject }) => {
         React.createElement("ul", { style: { listStyle: "none", padding: 0, margin: 0 } }, projects.map(p => (React.createElement("li", { key: p.id },
             React.createElement("div", { className: `sidebar-project-row ${currentProjId === p.id ? "active" : ""}`, onClick: () => openProject(p.id) },
                 React.createElement("span", { style: { display: "flex", alignItems: "center", gap: 6 } },
-                    React.createElement("span", { style: { fontSize: 18 } }, "\uD83D\uDCC2"),
+                    React.createElement("span", { style: { fontSize: 18 } },
+                        React.createElement("img", { src: folderIcon, alt: "Nouveau Chat Icon", style: {
+                                width: "18px",
+                                height: "18px",
+                                marginRight: "5px",
+                                verticalAlign: "middle",
+                            } })),
                     " ",
                     p.name),
                 React.createElement("button", { className: "delete-btn", onClick: e => {

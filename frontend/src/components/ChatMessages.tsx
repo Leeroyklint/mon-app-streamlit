@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm     from "remark-gfm";
+import rehypeRaw     from "rehype-raw";
 import "./ChatMessages.css";
 
 import { Message, Attachment } from "../interfaces/interfaces";
@@ -107,7 +108,10 @@ const ChatMessages:React.FC<Props> = ({
                         ? <CodeBlock className="language-html">{m.text}</CodeBlock>  
                         : <ReactMarkdown
                             remarkPlugins={[remarkGfm]}
-                            components={{ code:MarkdownCode }}
+                            rehypePlugins={[rehypeRaw]}
+                            components={{ code:MarkdownCode,
+                                          table: props => <table className="pretty-table" {...props} /> 
+                                        }}
                         >
                             {m.text}
                         </ReactMarkdown>

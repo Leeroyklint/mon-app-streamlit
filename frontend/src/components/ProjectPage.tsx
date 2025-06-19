@@ -17,6 +17,9 @@ import { reserve } from "../services/rateLimiter";
 import { Message, Attachment } from "../interfaces/interfaces";
 import "./ProjectPage.css";
 import { useModel } from "../contexts/ModelContext";
+import { useWeb }   from "../contexts/WebContext"; 
+import { createDocument }      from "../services/documentService";
+import { detectDocRequest }    from "../utils/detectDocRequest";
 
 const ProjectPage: React.FC = () => {
   const { projectId } = useParams<{ projectId: string }>();
@@ -40,6 +43,7 @@ const ProjectPage: React.FC = () => {
   const streamRef = useRef<{ cancel: () => void } | null>(null);
 
   const { modelId } = useModel();
+  const { web }     = useWeb();  
 
   /* ---------- load project & chats ---------- */
   useEffect(() => {
@@ -75,7 +79,7 @@ const ProjectPage: React.FC = () => {
   /* ---------- new chat ---------- */
   const createNewChat = async () => {
     if (!projectId || !newChatTitle.trim()) return;
-    const res = await createConversation(newChatTitle, "project", projectId, instructions);
+    const res = await createConversation(newChatTitle, "chat", projectId, instructions);
     const newConv = { id: res.conversationId, title: newChatTitle };
     setChats(prev => [newConv, ...prev]);
     window.dispatchEvent(
@@ -88,10 +92,26 @@ const ProjectPage: React.FC = () => {
   /* ---------- send ---------- */
   const handleSend = async (msg: string, files: File[]) => {
     if (!projectId || streaming || loading || ingesting) return;
+
+    (window as any).___enableWeb = web; 
+
     setLoading(true);
 
     let convId = conversationId;
     const cleanMsg = msg.trim();
+
+    /* ---------- création de document ---------- */
+    const kind = detectDocRequest(cleanMsg);
+    if (kind) {
+      try {
+        const resp = await createDocument(kind, cleanMsg);
+        const url  = URL.createObjectURL(await resp.blob());
+        add(`Voici votre fichier ${kind}`, "bot",
+            [{ name:`fichier.${kind}`, url, type:"application/octet-stream" }]);
+      } catch(e){ console.error(e); add("❌ Erreur création fichier", "bot"); }
+      return;                              // pas de LLM
+
+    }
 
     /* ----- preview fichiers immédiatement ----- */
     let preview: Attachment[] | undefined;
@@ -117,7 +137,7 @@ const ProjectPage: React.FC = () => {
 
     /* ----- create conv if needed ----- */
     if (!convId) {
-      const res = await createConversation("", "project", projectId, instructions);
+      const res = await createConversation("", "chat", projectId, instructions);
       convId = res.conversationId;
       setConvId(convId);
     }
@@ -133,9 +153,10 @@ const ProjectPage: React.FC = () => {
         {
           question: cleanMsg,
           conversationId: convId!,
-          conversationType: "project",
+          conversationType: "chat",
           instructions,
           modelId,
+          useWeb: web,   
         },
         {
           onDelta: d => {

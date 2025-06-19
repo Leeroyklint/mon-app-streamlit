@@ -1,5 +1,6 @@
 // ChatApp.tsx
 import React, { useState, useRef, useEffect } from "react";
+import { useWeb } from "../contexts/WebContext";
 import { useParams, useNavigate } from "react-router-dom";
 import ChatInput from "./ChatInput";
 import ChatMessages from "./ChatMessages";
@@ -8,6 +9,8 @@ import { askQuestionStream, getMessages, ApiError, } from "../services/conversat
 import { uploadDocuments } from "../services/documentService";
 import { reserve } from "../services/rateLimiter";
 import { useModel } from "../contexts/ModelContext";
+import { createDocument } from "../services/documentService";
+import { detectDocRequest } from "../utils/detectDocRequest";
 import "./ChatApp.css";
 /* ------------------------------------------------------------- */
 /*                           COMPONENT                           */
@@ -26,6 +29,7 @@ const ChatApp = () => {
     const idRef = useRef(0);
     const streamRef = useRef(null);
     const { modelId } = useModel();
+    const { web } = useWeb();
     /* ─── helpers UI ──────────────────────────────────────────── */
     const add = (text, sender, atts) => setMessages(p => [
         ...p,
@@ -100,9 +104,25 @@ const ChatApp = () => {
     const handleSend = async (userMessage, files) => {
         if (streaming || ingesting || generating)
             return;
+        // ── active / désactive la recherche Web pour cette requête
+        window.___enableWeb = web;
         let convId = conversationId;
         const cleanMsg = userMessage.trim();
-        /* ---------- 0. upload fichiers (= chat doc) -------------- */
+        /* ---------- création de document ---------- */
+        const kind = detectDocRequest(cleanMsg);
+        if (kind) {
+            try {
+                const resp = await createDocument(kind, cleanMsg);
+                const url = URL.createObjectURL(await resp.blob());
+                add(`Voici votre fichier ${kind}`, "bot", [{ name: `fichier.${kind}`, url, type: "application/octet-stream" }]);
+            }
+            catch (e) {
+                console.error(e);
+                add("❌ Erreur création fichier", "bot");
+            }
+            return; // pas de LLM
+        }
+        /* ---------- upload fichiers (= chat doc) -------------- */
         if (files.length) {
             const preview = files.map(f => ({
                 name: f.name, url: URL.createObjectURL(f), type: f.type || "Document",
@@ -171,6 +191,7 @@ const ChatApp = () => {
                 ...(convId ? { conversationId: convId } : {}),
                 conversationType: "chat",
                 modelId,
+                useWeb: web,
             }, {
                 onConvId: id => {
                     if (!conversationId) {

@@ -16,3 +16,6 @@ docx2txt
 langchain_community
 langchain_openai
 tiktoken
+python-docx
+reportlab
+python-pptx

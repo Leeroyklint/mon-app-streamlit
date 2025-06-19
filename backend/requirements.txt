@@ -15,3 +15,6 @@ openpyxl
 docx2txt
 langchain_community
 langchain_openai
+python-docx
+reportlab
+python-pptx

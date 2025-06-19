@@ -1,7 +1,7 @@
 /* === fond gris + blur ============================================= */
 .confirm-back{
     position:fixed;inset:0;
-    background:rgba(0,0,0,.55);
+    background:var(--bg-delete);
     backdrop-filter:blur(2px);
     display:flex;justify-content:center;align-items:center;
     z-index:10000;              /* au-dessus de tout le reste */
@@ -10,9 +10,9 @@
   /* === boîte ======================================================== */
   .confirm-box{
     width:430px;max-width:95vw;
-    background:#fff;border-radius:12px;padding:26px;
+    background:var(--bg);border-radius:12px;padding:26px;
     display:flex;flex-direction:column;gap:20px;
-    box-shadow:0 8px 24px rgba(0,0,0,.25);
+    box-shadow:0 8px 24px var(--text);
     position:relative;
   }
   
@@ -29,7 +29,7 @@
     cursor:pointer;
   }
   
-  .confirm-cancel{background:#f1f1f1;}
-  .confirm-delete{background:#d83b42;color:#fff;}
+  .confirm-cancel{background:var(--bubble-user);}
+  .confirm-delete{background:#d83b42;color:var(--bg);}
   .confirm-delete:hover{background:#c0353b;}
   

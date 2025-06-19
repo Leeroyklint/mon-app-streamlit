@@ -59,7 +59,7 @@ def list_conversations(entra_oid: str, conversation_type=None, project_id=None) 
     query = (
         "SELECT c.id, c.title, c.created_at, c.updated_at, c.type, c.project_id "
         "FROM c "
-        "WHERE c.entra_oid = @entra_oid "
+        "WHERE c.entra_oid = @entra_oid AND c.type = 'chat'"
     )
     parameters = [{"name": "@entra_oid", "value": entra_oid}]
     if conversation_type:

@@ -9,7 +9,7 @@
 }
 
 .sidebar-list-item:hover {
-  background-color: #eee;
+  background-color: var(--bg);
 }
 
 .sidebar-list-item button {
@@ -17,9 +17,9 @@
   border: none;
   cursor: pointer;
   font-size: 14px;
-  color: #666;
+  color: var(--text-dim);
 }
 
 .sidebar-list-item button:hover {
-  color: #000;
+  color: var(--text);
 }
